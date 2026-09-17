@@ -27,5 +27,5 @@ export function findJourneys(data: TransitData, fromStopId: string, toStopId: st
   }
   return candidates.sort((a, b) => a.arrival - b.arrival || a.transferCount - b.transferCount).slice(0, 3);
 }
-function asStop(time: TransitData["stopTimes"][number], tripId: string, stops: Map<string, TransitData["stops"][number]>): JourneyStop { return { stopId: time.stopId, name: stops.get(time.stopId)?.name ?? time.stopId, time: time.arrival, tripId }; }
+function asStop(time: TransitData["stopTimes"][number], tripId: string, stops: Map<string, TransitData["stops"][number]>): JourneyStop { return { stopId: time.stopId, name: stops.get(time.stopId)?.name ?? time.stopId, time: time.arrival, tripId, platformCode: time.platformCode }; }
 function addIfDestination(target: Journey[], stops: JourneyStop[], destination: string) { const index = stops.findIndex((stop) => stop.stopId === destination); if (index < 0) return; const selected = stops.slice(0, index + 1); target.push({ departure: selected[0].time, arrival: selected.at(-1)!.time, transferCount: 0, staysAboard: selected.some((stop) => stop.continuation === "in-seat"), viaCityLoop: /Flinders Street|Parliament|Melbourne Central|Flagstaff/.test(selected.map((stop) => stop.name).join("|")), stops: selected, technicalTripIds: [...new Set(selected.map((stop) => stop.tripId))] }); }
