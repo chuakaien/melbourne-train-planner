@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPool } from "@/lib/db/client";
+import { fetchRealtimeMetroVehicles } from "@/lib/realtime/metro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ function serviceClock(now = new Date()) {
 export async function GET() {
   const clock = serviceClock();
   const pool = getPool();
-  const [stations, vehicleRows] = await Promise.all([
+  const [stations, vehicleRows, realtimeVehicles] = await Promise.all([
     pool.query(
       "select min(id) id, name, avg(latitude) latitude, avg(longitude) longitude from stops where parent_station is not null group by name order by name",
     ),
@@ -88,7 +89,37 @@ export async function GET() {
        limit 180`,
       [clock.date, clock.seconds],
     ),
+    fetchRealtimeMetroVehicles(),
   ]);
+
+  if (realtimeVehicles?.length) {
+    const tripIds = realtimeVehicles.flatMap((vehicle) => (vehicle.tripId ? [vehicle.tripId] : []));
+    const details = tripIds.length
+      ? await pool.query<{ id: string; route_id: string; headsign: string | null }>(
+          "select id, route_id, headsign from trips where id = any($1::text[])",
+          [tripIds],
+        )
+      : { rows: [] };
+    const tripDetails = new Map(details.rows.map((trip) => [trip.id, trip]));
+    return NextResponse.json(
+      {
+        stations: stations.rows,
+        vehicles: realtimeVehicles.map((vehicle) => {
+          const trip = vehicle.tripId ? tripDetails.get(vehicle.tripId) : undefined;
+          return {
+            id: vehicle.id,
+            routeId: vehicle.routeId ?? trip?.route_id ?? "Metro",
+            headsign: trip?.headsign ?? "Live Metro service",
+            latitude: vehicle.latitude,
+            longitude: vehicle.longitude,
+          };
+        }),
+        asOf: new Date().toISOString(),
+        positionSource: "realtime",
+      },
+      { headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30" } },
+    );
+  }
 
   const vehicles = vehicleRows.rows.map((vehicle) => {
     const duration = Math.max(1, vehicle.arrival - vehicle.departure);

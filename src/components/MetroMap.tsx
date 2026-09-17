@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 
 type Station = { id: string; name: string; latitude: number; longitude: number };
 type Vehicle = { id: string; routeId: string; headsign: string; latitude: number; longitude: number };
-type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" };
+type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 
 function routeColour(routeId: string) {
   const colours = ["#ff6b6b", "#f6c945", "#6ee7b7", "#7dd3fc", "#c4b5fd", "#fb923c", "#f9a8d4"];
@@ -83,7 +83,7 @@ export default function MetroMap() {
               <br />
               Route {vehicle.routeId}
               <br />
-              Position projected from today&apos;s timetable
+              {data.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
             </Popup>
           </CircleMarker>
         );
@@ -105,8 +105,8 @@ export default function MetroMap() {
       <div className="map-status" aria-live="polite">
         <span className="status-pulse" />
         <div>
-          <b>{data ? `${data.vehicles.length} scheduled services` : "Loading services"}</b>
-          <small>Updated {updatedAt} · Melbourne time</small>
+          <b>{data ? `${data.vehicles.length} ${data.positionSource === "realtime" ? "live positions" : "scheduled services"}` : "Loading services"}</b>
+          <small>{data?.positionSource === "realtime" ? "Official live feed" : "Timetable projection"} · Updated {updatedAt}</small>
         </div>
       </div>
     </div>

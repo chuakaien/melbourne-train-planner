@@ -20,10 +20,10 @@ export default function Home() {
           <h1>See the network move.</h1>
           <p>Explore stations, routes and live-ready train information across Melbourne.</p>
           <div>
-            <b>Timetable vehicle positions</b>
+            <b>Vehicle positions</b>
             <p>
-              Coloured trains are projected from today&apos;s official timetable and refresh every
-              30 seconds. Realtime feed matching is the next upgrade.
+              Official realtime locations are used when available. Otherwise, coloured trains
+              are projected from today&apos;s timetable and refresh every 30 seconds.
             </p>
           </div>
         </aside>
