@@ -15,6 +15,7 @@ function routeColour(routeId: string) {
 
 export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
+  const [showStations, setShowStations] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -36,11 +37,21 @@ export default function MetroMap() {
     };
   }, []);
 
-  return (
-    <MapContainer center={[-37.8136, 144.9631]} zoom={11} className="metro-map" style={{ height: "100%", width: "100%" }}>
-      <TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+  const updatedAt = data
+    ? new Intl.DateTimeFormat("en-AU", {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZone: "Australia/Melbourne",
+      }).format(new Date(data.asOf))
+    : "Connecting…";
 
-      {data?.stations.map((station) => (
+  return (
+    <div className="map-root">
+      <MapContainer center={[-37.8136, 144.9631]} zoom={11} className="metro-map" style={{ height: "100%", width: "100%" }}>
+        <TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+      {showStations && data?.stations.map((station) => (
         <CircleMarker
           key={station.id}
           center={[Number(station.latitude), Number(station.longitude)]}
@@ -77,6 +88,27 @@ export default function MetroMap() {
           </CircleMarker>
         );
       })}
-    </MapContainer>
+      </MapContainer>
+
+      <div className="map-controls" aria-label="Map display controls">
+        <button
+          type="button"
+          className={showStations ? "map-toggle is-active" : "map-toggle"}
+          onClick={() => setShowStations((visible) => !visible)}
+          aria-pressed={showStations}
+        >
+          <span className="station-dot" />
+          {showStations ? "Hide stations" : "Show stations"}
+        </button>
+      </div>
+
+      <div className="map-status" aria-live="polite">
+        <span className="status-pulse" />
+        <div>
+          <b>{data ? `${data.vehicles.length} scheduled services` : "Loading services"}</b>
+          <small>Updated {updatedAt} · Melbourne time</small>
+        </div>
+      </div>
+    </div>
   );
 }
