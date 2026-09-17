@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "gtfs:download": "tsx scripts/gtfs-download.ts",
     "gtfs:import": "tsx scripts/gtfs-import.ts",
-    "gtfs:update": "npm run gtfs:download && npm run gtfs:import"
+    "gtfs:update": "npm run gtfs:download && npm run gtfs:import",
+    "db:migrate": "tsx scripts/db-migrate.ts"
   },
   "dependencies": {
     "csv-parse": "^7.0.2",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

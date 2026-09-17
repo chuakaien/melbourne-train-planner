@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS stops (id text PRIMARY KEY, name text NOT NULL, latitude real NOT NULL, longitude real NOT NULL, parent_station text);
+CREATE TABLE IF NOT EXISTS trips (id text PRIMARY KEY, route_id text NOT NULL, service_id text NOT NULL, headsign text, block_id text);
+CREATE TABLE IF NOT EXISTS stop_times (trip_id text NOT NULL REFERENCES trips(id), stop_id text NOT NULL REFERENCES stops(id), arrival integer NOT NULL, departure integer NOT NULL, sequence integer NOT NULL, platform_code text, UNIQUE(trip_id, sequence));
+CREATE TABLE IF NOT EXISTS transfers (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, from_stop_id text NOT NULL, to_stop_id text NOT NULL, from_trip_id text, to_trip_id text, type integer NOT NULL, minimum_seconds integer);
+CREATE TABLE IF NOT EXISTS calendars (service_id text PRIMARY KEY, monday integer NOT NULL, tuesday integer NOT NULL, wednesday integer NOT NULL, thursday integer NOT NULL, friday integer NOT NULL, saturday integer NOT NULL, sunday integer NOT NULL, start_date text NOT NULL, end_date text NOT NULL);
+CREATE TABLE IF NOT EXISTS calendar_dates (service_id text NOT NULL, date text NOT NULL, exception_type integer NOT NULL, UNIQUE(service_id,date));
+CREATE INDEX IF NOT EXISTS stops_name_idx ON stops(name); CREATE INDEX IF NOT EXISTS trips_service_idx ON trips(service_id); CREATE INDEX IF NOT EXISTS stop_times_stop_departure_idx ON stop_times(stop_id,departure); CREATE INDEX IF NOT EXISTS transfers_trip_ids_idx ON transfers(from_trip_id,to_trip_id);
