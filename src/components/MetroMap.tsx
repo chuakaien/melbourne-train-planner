@@ -116,8 +116,9 @@ export default function MetroMap() {
         {visibleVehicles.map((vehicle) => {
           const colour = vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
           const isSelected = selectedVehicleId === vehicle.id;
+          const isDimmed = Boolean(selectedVehicleId) && !isSelected;
           return (
-            <CircleMarker key={vehicle.id} center={[vehicle.latitude, vehicle.longitude]} radius={isSelected ? 10 : 7} eventHandlers={{ click: () => { void selectVehicle(vehicle); } }} pathOptions={{ color: isSelected ? "#fff" : "#071b2b", fillColor: colour, fillOpacity: 1, weight: isSelected ? 3 : 2 }}>
+            <CircleMarker key={vehicle.id} center={[vehicle.latitude, vehicle.longitude]} radius={isSelected ? 10 : 7} eventHandlers={{ click: () => { void selectVehicle(vehicle); } }} pathOptions={{ color: isSelected ? "#fff" : "#071b2b", fillColor: colour, fillOpacity: isDimmed ? 0.18 : 1, opacity: isDimmed ? 0.18 : 1, weight: isSelected ? 3 : 2 }}>
               <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
               <Popup>
                 <b>Destination: {selectedVehicleId === vehicle.id && selectedTrip ? selectedTrip.destination : vehicle.headsign}</b><br />

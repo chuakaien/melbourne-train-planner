@@ -14,19 +14,6 @@ export default function Home() {
 
       <section className="map-shell">
         <MetroMap />
-
-        <aside>
-          <small>MELBOURNE METRO</small>
-          <h1>See the network move.</h1>
-          <p>Explore stations, routes and live-ready train information across Melbourne.</p>
-          <div>
-            <b>Vehicle positions</b>
-            <p>
-              Official realtime locations are used when available. Otherwise, coloured trains
-              are projected from today&apos;s timetable and refresh every 30 seconds.
-            </p>
-          </div>
-        </aside>
       </section>
 
       <footer>
