@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 type DbVehicle = {
   trip_id: string;
   route_id: string;
+  route_name: string | null;
+  route_color: string | null;
   headsign: string | null;
   from_latitude: number;
   from_longitude: number;
@@ -61,12 +63,13 @@ export async function GET() {
          union
          select added.service_id from calendar_dates added where added.date = $1 and added.exception_type = 1
        )
-       select t.id as trip_id, t.route_id, t.headsign,
+       select t.id as trip_id, t.route_id, t.headsign, r.short_name as route_name, r.color as route_color,
               previous_stop.latitude as from_latitude, previous_stop.longitude as from_longitude,
               next_stop.latitude as to_latitude, next_stop.longitude as to_longitude,
               previous_time.departure, next_time.arrival
        from trips t
        join active_services service on service.service_id = t.service_id
+       left join routes r on r.id = t.route_id
        join lateral (
          select st.sequence, st.departure, s.latitude, s.longitude
          from stop_times st join stops s on s.id = st.stop_id
@@ -95,8 +98,8 @@ export async function GET() {
   if (realtimeVehicles?.length) {
     const tripIds = realtimeVehicles.flatMap((vehicle) => (vehicle.tripId ? [vehicle.tripId] : []));
     const details = tripIds.length
-      ? await pool.query<{ id: string; route_id: string; headsign: string | null }>(
-          "select id, route_id, headsign from trips where id = any($1::text[])",
+      ? await pool.query<{ id: string; route_id: string; headsign: string | null; route_name: string | null; route_color: string | null }>(
+          "select t.id, t.route_id, t.headsign, r.short_name as route_name, r.color as route_color from trips t left join routes r on r.id = t.route_id where t.id = any($1::text[])",
           [tripIds],
         )
       : { rows: [] };
@@ -109,6 +112,8 @@ export async function GET() {
           return {
             id: vehicle.id,
             routeId: vehicle.routeId ?? trip?.route_id ?? "Metro",
+            routeName: trip?.route_name ?? "Metro",
+            routeColor: trip?.route_color ?? null,
             headsign: trip?.headsign ?? "Live Metro service",
             latitude: vehicle.latitude,
             longitude: vehicle.longitude,
@@ -127,6 +132,8 @@ export async function GET() {
     return {
       id: vehicle.trip_id,
       routeId: vehicle.route_id,
+      routeName: vehicle.route_name ?? "Metro",
+      routeColor: vehicle.route_color,
       headsign: vehicle.headsign ?? "Melbourne Metro service",
       latitude: vehicle.from_latitude + (vehicle.to_latitude - vehicle.from_latitude) * progress,
       longitude: vehicle.from_longitude + (vehicle.to_longitude - vehicle.from_longitude) * progress,

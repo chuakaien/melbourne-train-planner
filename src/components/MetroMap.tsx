@@ -5,7 +5,7 @@ import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-lea
 import "leaflet/dist/leaflet.css";
 
 type Station = { id: string; name: string; latitude: number; longitude: number };
-type Vehicle = { id: string; routeId: string; headsign: string; latitude: number; longitude: number };
+type Vehicle = { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; latitude: number; longitude: number };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 
 function routeColour(routeId: string) {
@@ -67,7 +67,7 @@ export default function MetroMap() {
       ))}
 
       {data?.vehicles.map((vehicle) => {
-        const colour = routeColour(vehicle.routeId);
+        const colour = vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
         return (
           <CircleMarker
             key={vehicle.id}
@@ -81,7 +81,7 @@ export default function MetroMap() {
             <Popup>
               <b>{vehicle.headsign}</b>
               <br />
-              Route {vehicle.routeId}
+              {vehicle.routeName} line
               <br />
               {data.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
             </Popup>

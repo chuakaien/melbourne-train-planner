@@ -1,5 +1,6 @@
 import { index, integer, pgTable, real, text, uniqueIndex } from "drizzle-orm/pg-core";
 
+export const routes = pgTable("routes", { id: text().primaryKey(), shortName: text("short_name"), longName: text("long_name"), color: text() }, (table) => [index("routes_short_name_idx").on(table.shortName)]);
 export const stops = pgTable("stops", { id: text().primaryKey(), name: text().notNull(), latitude: real().notNull(), longitude: real().notNull(), parentStation: text("parent_station") }, (table) => [index("stops_name_idx").on(table.name)]);
 export const trips = pgTable("trips", { id: text().primaryKey(), routeId: text("route_id").notNull(), serviceId: text("service_id").notNull(), headsign: text(), blockId: text("block_id") }, (table) => [index("trips_route_idx").on(table.routeId), index("trips_service_idx").on(table.serviceId)]);
 export const stopTimes = pgTable("stop_times", { tripId: text("trip_id").notNull().references(() => trips.id), stopId: text("stop_id").notNull().references(() => stops.id), arrival: integer().notNull(), departure: integer().notNull(), sequence: integer().notNull(), platformCode: text("platform_code") }, (table) => [uniqueIndex("stop_times_trip_sequence_idx").on(table.tripId, table.sequence), index("stop_times_stop_departure_idx").on(table.stopId, table.departure)]);
