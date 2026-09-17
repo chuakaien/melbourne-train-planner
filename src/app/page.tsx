@@ -1,69 +1,8 @@
-import Image from "next/image";
-
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
-}
+"use client";
+import { useMemo, useState } from "react";
+import { demoData } from "@/lib/demo-data";
+import { formatServiceTime } from "@/lib/gtfs/time";
+import { findJourneys } from "@/lib/routing/router";
+const stations = demoData.stops;
+export default function Home() { const [from, setFrom] = useState("southern-cross"); const [to, setTo] = useState("craigieburn"); const [searched, setSearched] = useState(false); const journeys = useMemo(() => searched ? findJourneys(demoData, from, to, 0, new Date("2026-09-17T12:00:00+10:00")) : [], [from, to, searched]); return <main><section className="masthead"><div className="wordmark"><span aria-hidden>↗</span> Metrowise</div><p>Melbourne train journeys, without phantom transfers.</p></section><section className="planner" aria-labelledby="plan-title"><div className="eyebrow">Metropolitan trains · Melbourne</div><h1 id="plan-title">Where are you going?</h1><div className="fields"><StationSelect label="From" value={from} onChange={setFrom}/><StationSelect label="To" value={to} onChange={setTo}/></div><div className="leave"><span>Leave</span><button className="choice" type="button">Now</button><button className="choice muted" type="button">Depart at</button></div><button className="find" onClick={() => setSearched(true)}>Find trains <span>→</span></button></section>{searched && <section className="results" aria-live="polite"><div className="result-heading"><h2>{journeys.length ? "Best ways to travel" : "No scheduled train found"}</h2><p>{journeys.length ? "Scheduled example — connect a GTFS import to search the live timetable." : "Try a different station pair or departure time."}</p></div>{journeys.map((journey, index) => <article className="journey" key={index}><div className="journey-top"><div><strong>{formatServiceTime(journey.departure)} <span>→</span> {formatServiceTime(journey.arrival)}</strong><small>{Math.round((journey.arrival - journey.departure) / 60)} min · {journey.viaCityLoop ? "Via City Loop" : "Scheduled service"}</small></div><span className="chip">{journey.transferCount} transfers</span></div>{journey.staysAboard && <div className="stay">Stay on this train <span>This train continues as another service — do not get off.</span></div>}<ol className="timeline">{journey.stops.map((stop, i) => <li key={`${stop.tripId}-${stop.stopId}-${i}`} className={stop.continuation ? "continues" : ""}><time>{formatServiceTime(stop.time)}</time><span className="dot"/><b>{stop.name.replace(" Station", "")}</b>{stop.continuation && <em>Train continues</em>}</li>)}</ol><details><summary>Journey details</summary><p>Underlying timetable trips: {journey.technicalTripIds.join(" → ")}. This technical change is an explicit in-seat continuation, not a passenger transfer.</p></details></article>)}</section>}<footer>Uses public transport data provided by the Victorian Department of Transport and Planning. Metrowise is an independent application and is not affiliated with PTV or the Victorian Government.</footer></main>; }
+function StationSelect({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) { return <label><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</select></label>; }

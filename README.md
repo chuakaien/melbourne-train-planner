@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Melbourne Train Planner
 
-## Getting Started
+Metrowise is a Melbourne metropolitan train journey planner designed to make through-running clear. A GTFS `trip_id` is not necessarily one physical train: when the official feed explicitly supplies `transfer_type=4`, the app tells passengers to stay aboard and counts zero transfers.
 
-First, run the development server:
+## Features
+
+- Mobile-first station-to-station search surface
+- Ordered City Loop stop sequence, rather than only a line label
+- Explicit in-seat continuation semantics
+- GTFS parsing, calendar support and times beyond 24:00
+- PostgreSQL/Drizzle schema for server-side timetable data
+- Repeatable official GTFS download command
+
+## Architecture and data
+
+The official Victorian DTP GTFS Schedule feed is the timetable foundation. The intended production flow downloads and extracts Folder 2 (Metropolitan Train), normalizes it into PostgreSQL, then routes entirely server-side. See [architecture](docs/architecture.md), [GTFS findings](docs/gtfs-findings.md), and [routing](docs/routing.md).
+
+## Install
+
+```bash
+git clone <your-repository-url>
+cd melbourne-train-planner
+npm install
+cp .env.example .env.local
+```
+
+Set `DATABASE_URL` before importing timetable data. API keys are optional until realtime integration is configured and must remain server-side.
+
+## Commands
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm test
+npm run lint
+npm run build
+npm run gtfs:download
+npm run gtfs:import
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deployment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The project is designed for Vercel. Connect the GitHub repository in Vercel, set the environment variables there, provision PostgreSQL, then run the importer from an environment with database access. No Vercel project is configured by this repository.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data attribution and limitations
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Uses public transport data provided by the Victorian Department of Transport and Planning. This is an independent application and is not affiliated with PTV or the Victorian Government. The shipped interface is an illustrative fixture until a production GTFS import and database are configured; see [validation](docs/validation.md).

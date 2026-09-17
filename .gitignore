@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# Downloaded transport data is deliberately never versioned.
+/data/
+
 # production
 /build
 
