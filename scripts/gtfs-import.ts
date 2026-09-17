@@ -1,3 +1,4 @@
+import dotenv from "dotenv";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,6 +8,8 @@ import { getPool } from "../src/lib/db/client";
 import { gtfsTimeToSeconds } from "../src/lib/gtfs/time";
 
 type Row = Record<string, string>;
+async function main() {
+dotenv.config({ path: ".env.local" });
 const csv = (file: string): Row[] => parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""), { columns: true, skip_empty_lines: true, trim: true });
 const value = (row: Row, name: string) => row[name] || null;
 if (!existsSync("data/gtfs.zip")) throw new Error("Missing data/gtfs.zip. Run npm run gtfs:download first.");
@@ -30,3 +33,5 @@ try {
   await run("transfers", ["from_stop_id","to_stop_id","from_trip_id","to_trip_id","type","minimum_seconds"], transfers.map(r => [r.from_stop_id,r.to_stop_id,value(r,"from_trip_id"),value(r,"to_trip_id"),Number(r.transfer_type),r.min_transfer_time ? Number(r.min_transfer_time) : null]));
   await client.query("COMMIT"); console.log(`GTFS import complete\nStations: ${stops.length}\nTrips: ${trips.length}\nStop times: ${times.length}\nIn-seat transfers: ${transfers.filter(r=>r.transfer_type === "4").length}`);
 } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); await pool.end(); }
+}
+main().catch((error: unknown) => { console.error(error); process.exitCode = 1; });
