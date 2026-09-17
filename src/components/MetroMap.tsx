@@ -16,6 +16,8 @@ function routeColour(routeId: string) {
 export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
   const [showStations, setShowStations] = useState(false);
+  const [showLinePicker, setShowLinePicker] = useState(false);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,6 +47,12 @@ export default function MetroMap() {
         timeZone: "Australia/Melbourne",
       }).format(new Date(data.asOf))
     : "Connecting…";
+  const lines = [...new Map((data?.vehicles ?? []).map((vehicle) => [vehicle.routeId, vehicle])).values()]
+    .sort((first, second) => first.routeName.localeCompare(second.routeName));
+  const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
+  const visibleVehicles = (data?.vehicles ?? []).filter(
+    (vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId,
+  );
 
   return (
     <div className="map-root">
@@ -66,7 +74,7 @@ export default function MetroMap() {
         </CircleMarker>
       ))}
 
-      {data?.vehicles.map((vehicle) => {
+      {visibleVehicles.map((vehicle) => {
         const colour = vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
         return (
           <CircleMarker
@@ -83,7 +91,7 @@ export default function MetroMap() {
               <br />
               {vehicle.routeName} line
               <br />
-              {data.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
+              {data?.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
             </Popup>
           </CircleMarker>
         );
@@ -93,6 +101,15 @@ export default function MetroMap() {
       <div className="map-controls" aria-label="Map display controls">
         <button
           type="button"
+          className={showLinePicker ? "map-toggle is-active" : "map-toggle"}
+          onClick={() => setShowLinePicker((visible) => !visible)}
+          aria-expanded={showLinePicker}
+        >
+          <span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#d5f253" }} />
+          {selectedLine ? selectedLine.routeName : "All lines"}
+        </button>
+        <button
+          type="button"
           className={showStations ? "map-toggle is-active" : "map-toggle"}
           onClick={() => setShowStations((visible) => !visible)}
           aria-pressed={showStations}
@@ -100,12 +117,35 @@ export default function MetroMap() {
           <span className="station-dot" />
           {showStations ? "Hide stations" : "Show stations"}
         </button>
+
+        {showLinePicker && (
+          <div className="line-picker" role="group" aria-label="Filter by line">
+            <button
+              type="button"
+              className={!selectedRouteId ? "line-chip is-active" : "line-chip"}
+              onClick={() => { setSelectedRouteId(null); setShowLinePicker(false); }}
+            >
+              All lines
+            </button>
+            {lines.map((line) => (
+              <button
+                type="button"
+                key={line.routeId}
+                className={selectedRouteId === line.routeId ? "line-chip is-active" : "line-chip"}
+                onClick={() => { setSelectedRouteId(line.routeId); setShowLinePicker(false); }}
+              >
+                <span className="line-dot" style={{ background: line.routeColor ? `#${line.routeColor}` : routeColour(line.routeId) }} />
+                {line.routeName}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="map-status" aria-live="polite">
         <span className="status-pulse" />
         <div>
-          <b>{data ? `${data.vehicles.length} ${data.positionSource === "realtime" ? "live positions" : "scheduled services"}` : "Loading services"}</b>
+          <b>{data ? `${visibleVehicles.length} ${data.positionSource === "realtime" ? "live positions" : "scheduled services"}` : "Loading services"}</b>
           <small>{data?.positionSource === "realtime" ? "Official live feed" : "Timetable projection"} · Updated {updatedAt}</small>
         </div>
       </div>
