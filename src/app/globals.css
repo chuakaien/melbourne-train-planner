@@ -1,1 +1,12 @@
-@import "tailwindcss";html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071b2b;font-family:Arial,sans-serif}.live{width:100vw;max-width:none;height:100dvh;padding:0;display:grid;grid-template-rows:58px 1fr;background:#071b2b;color:#eef8f8}.live header{display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:#09263b;z-index:700}.live header b{font-size:1.3rem}.live header span,small{color:#d5f253;font-size:.8rem}.map-shell{position:relative;width:100%;height:100%;min-height:0;overflow:hidden}.metro-map{width:100%;height:100%;z-index:1}.live aside{position:absolute;z-index:500;top:20px;left:20px;width:min(350px,calc(100vw - 40px));background:#09263bea;padding:22px;border-radius:14px;box-shadow:0 12px 40px #0008}.live aside h1{font-size:2.2rem;line-height:1;margin:10px 0}.live aside p{line-height:1.45}.live aside div{background:#12354a;padding:12px;border-radius:9px}.live footer{display:none}@media(max-width:600px){.live{grid-template-rows:52px 1fr}.live header{padding:0 14px}.live aside{top:auto;bottom:14px;left:14px;width:calc(100vw - 28px);padding:15px}.live aside h1{font-size:1.65rem}.live aside>p,.live aside div{display:none}}
+@import "tailwindcss";
+
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #071b2b; }
+body { font-family: Arial, sans-serif; }
+.live { position: fixed; inset: 0; display: grid; grid-template-rows: 58px 1fr; background: #071b2b; color: #eef8f8; }
+.live header { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: #09263b; z-index: 700; }
+.live header b { font-size: 1.3rem; }.live header span, .live small { color: #d5f253; font-size: .8rem; }
+.map-shell { position: relative; min-height: 0; overflow: hidden; }
+.metro-map, .leaflet-container { width: 100%; height: 100%; }
+.live aside { position: absolute; z-index: 500; top: 20px; left: 20px; width: min(350px, calc(100vw - 40px)); background: #09263bea; color: #eef8f8; padding: 22px; border-radius: 14px; box-shadow: 0 12px 40px #0008; }
+.live aside h1 { font-size: 2.2rem; line-height: 1; margin: 10px 0; }.live aside p { line-height: 1.45; }.live aside div { background: #12354a; padding: 12px; border-radius: 9px; }.live footer { display: none; }
+@media (max-width:600px) { .live { grid-template-rows: 52px 1fr; }.live header { padding: 0 14px; }.live aside { top: auto; bottom: 14px; left: 14px; width: calc(100vw - 28px); padding: 15px; }.live aside h1 { font-size: 1.65rem; }.live aside>p,.live aside div { display:none; } }
