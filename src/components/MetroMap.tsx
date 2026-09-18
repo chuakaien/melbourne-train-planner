@@ -40,6 +40,7 @@ export default function MetroMap() {
   const [selectedTrip, setSelectedTrip] = useState<TripPath | null>(null);
   const [location, setLocation] = useState<Point | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [showNearby, setShowNearby] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -86,10 +87,11 @@ export default function MetroMap() {
   }
 
   function locateMe() {
+    if (location) { setShowNearby(true); return; }
     if (!navigator.geolocation) { setLocationError("Location is not supported by this browser."); return; }
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => setLocation({ latitude: coords.latitude, longitude: coords.longitude }),
+      ({ coords }) => { setLocation({ latitude: coords.latitude, longitude: coords.longitude }); setShowNearby(true); },
       () => setLocationError("Location permission was not granted."),
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
     );
@@ -132,7 +134,7 @@ export default function MetroMap() {
       </MapContainer>
 
       <div className="map-controls" aria-label="Map display controls">
-        <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />Locate me</button>
+        <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby trains" : "Locate me"}</button>
         <button type="button" className={showLinePicker ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowLinePicker((visible) => !visible)} aria-expanded={showLinePicker}>
           <span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#d5f253" }} />{selectedLine ? selectedLine.routeName : "All lines"}
         </button>
@@ -149,7 +151,7 @@ export default function MetroMap() {
         <div><small>SELECTED TRAIN</small><b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b><p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p></div>
       </div>}
 
-      {location && <div className="nearby-panel"><small>NEAREST {data?.positionSource === "realtime" ? "LIVE" : "SCHEDULED"} TRAINS</small>{nearbyVehicles.map(({ vehicle, distance }) => <button type="button" key={vehicle.id} onClick={() => { void selectVehicle(vehicle); }}><span className="line-dot" style={{ background: vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId) }} /><b>To {vehicle.headsign}</b><em>{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}</em></button>)}<p>Location is used only in this browser.</p></div>}
+      {location && showNearby && <div className="nearby-panel"><button type="button" className="nearby-close" onClick={() => setShowNearby(false)} aria-label="Hide nearby trains">×</button><small>NEAREST {data?.positionSource === "realtime" ? "LIVE" : "SCHEDULED"} TRAINS</small>{nearbyVehicles.map(({ vehicle, distance }) => <button type="button" key={vehicle.id} onClick={() => { void selectVehicle(vehicle); }}><span className="line-dot" style={{ background: vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId) }} /><b>To {vehicle.headsign}</b><em>{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}</em></button>)}<p>Location is used only in this browser.</p></div>}
       {locationError && <div className="location-error" role="status">{locationError}</div>}
 
       <div className="map-status" aria-live="polite"><span className="status-pulse" /><div><b>{data ? `${visibleVehicles.length} ${data.positionSource === "realtime" ? "live positions" : "scheduled services"}` : "Loading services"}</b><small>{data?.positionSource === "realtime" ? "Official live feed" : "Timetable projection"} · Updated {updatedAt}</small></div></div>
