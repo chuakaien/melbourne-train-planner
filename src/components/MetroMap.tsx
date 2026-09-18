@@ -148,7 +148,7 @@ export default function MetroMap() {
 
       {selectedVehicle && <div className="trip-panel">
         <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
-        <div><small>SELECTED TRAIN</small><b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b><p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p></div>
+        <div><small>SELECTED TRAIN</small><b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b><p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p><button type="button" className="overview-button" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); }}>← Back to overview</button></div>
       </div>}
 
       {location && showNearby && <div className="nearby-panel"><button type="button" className="nearby-close" onClick={() => setShowNearby(false)} aria-label="Hide nearby trains">×</button><small>NEAREST {data?.positionSource === "realtime" ? "LIVE" : "SCHEDULED"} TRAINS</small>{nearbyVehicles.map(({ vehicle, distance }) => <button type="button" key={vehicle.id} onClick={() => { void selectVehicle(vehicle); }}><span className="line-dot" style={{ background: vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId) }} /><b>To {vehicle.headsign}</b><em>{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}</em></button>)}<p>Location is used only in this browser.</p></div>}
