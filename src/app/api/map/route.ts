@@ -73,8 +73,9 @@ export async function GET() {
        join lateral (
          select st.sequence, st.departure, s.latitude, s.longitude
          from stop_times st join stops s on s.id = st.stop_id
-         where st.trip_id = t.id and st.departure <= $2
-         order by st.sequence desc limit 1
+         where st.trip_id = t.id
+           and (st.departure <= $2 or (st.sequence = 1 and st.departure <= $2 + 300))
+         order by (st.departure <= $2) desc, st.sequence desc limit 1
        ) previous_time on true
        join lateral (
          select st.arrival, s.latitude, s.longitude
