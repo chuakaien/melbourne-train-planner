@@ -48,6 +48,15 @@ function serviceClock(now = new Date()) {
   };
 }
 
+function bearing(fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number) {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const degrees = (value: number) => (value * 180) / Math.PI;
+  const longitude = radians(toLongitude - fromLongitude);
+  const y = Math.sin(longitude) * Math.cos(radians(toLatitude));
+  const x = Math.cos(radians(fromLatitude)) * Math.sin(radians(toLatitude)) - Math.sin(radians(fromLatitude)) * Math.cos(radians(toLatitude)) * Math.cos(longitude);
+  return (degrees(Math.atan2(y, x)) + 360) % 360;
+}
+
 export async function GET() {
   const clock = serviceClock();
   const pool = getPool();
@@ -118,6 +127,7 @@ export async function GET() {
             headsign: trip?.headsign ?? "Live Metro service",
             latitude: vehicle.latitude,
             longitude: vehicle.longitude,
+            heading: vehicle.heading ?? 0,
           };
         }),
         asOf: new Date().toISOString(),
@@ -138,6 +148,7 @@ export async function GET() {
       headsign: vehicle.headsign ?? "Melbourne Metro service",
       latitude: vehicle.from_latitude + (vehicle.to_latitude - vehicle.from_latitude) * progress,
       longitude: vehicle.from_longitude + (vehicle.to_longitude - vehicle.from_longitude) * progress,
+      heading: bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
     };
   });
 

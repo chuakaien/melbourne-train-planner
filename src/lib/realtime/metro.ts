@@ -9,6 +9,7 @@ export type RealtimeVehicle = {
   routeId?: string;
   latitude: number;
   longitude: number;
+  heading?: number;
 };
 
 /** Returns null when the official feed is unavailable so callers can use schedule data instead. */
@@ -35,6 +36,7 @@ export async function fetchRealtimeMetroVehicles(): Promise<RealtimeVehicle[] | 
         routeId: entity.vehicle?.trip?.routeId,
         latitude: position.latitude,
         longitude: position.longitude,
+        heading: position.bearing,
       }];
     });
   } catch {

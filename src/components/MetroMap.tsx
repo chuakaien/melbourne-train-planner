@@ -1,18 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
+import { divIcon } from "leaflet";
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 type Point = { latitude: number; longitude: number };
 type Station = Point & { id: string; name: string };
-type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string };
+type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number }> };
 
 function routeColour(routeId: string) {
   const colours = ["#ff6b6b", "#f6c945", "#6ee7b7", "#7dd3fc", "#c4b5fd", "#fb923c", "#f9a8d4"];
   return colours[[...routeId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % colours.length];
+}
+
+function trainIcon(colour: string, heading: number, selected: boolean) {
+  const size = selected ? 26 : 21;
+  const safeColour = /^#[0-9a-f]{6}$/i.test(colour) ? colour : "#0c75b8";
+  const safeHeading = Number.isFinite(heading) ? heading : 0;
+  return divIcon({
+    className: "train-arrow-icon",
+    html: `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="${safeColour}" stroke="${selected ? "#ffffff" : "#071b2b"}" stroke-width="${selected ? 3 : 2}"/><path d="M12 4 L17 17 L12 14 L7 17 Z" fill="#fff" transform="rotate(${safeHeading} 12 12)"/></svg>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
 }
 
 function distanceKm(first: Point, second: Point) {
@@ -33,7 +47,7 @@ function RecenterMap({ position }: { position: Point | null }) {
 
 export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
-  const [showStations, setShowStations] = useState(false);
+  const [showStations, setShowStations] = useState(true);
   const [showLinePicker, setShowLinePicker] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -120,7 +134,7 @@ export default function MetroMap() {
           const isSelected = selectedVehicleId === vehicle.id;
           const isDimmed = Boolean(selectedVehicleId) && !isSelected;
           return (
-            <CircleMarker key={vehicle.id} center={[vehicle.latitude, vehicle.longitude]} radius={isSelected ? 10 : 7} eventHandlers={{ click: () => { void selectVehicle(vehicle); } }} pathOptions={{ color: isSelected ? "#fff" : "#071b2b", fillColor: colour, fillOpacity: isDimmed ? 0.18 : 1, opacity: isDimmed ? 0.18 : 1, weight: isSelected ? 3 : 2 }}>
+            <Marker key={vehicle.id} position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, vehicle.heading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={{ click: () => { void selectVehicle(vehicle); } }}>
               <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
               <Popup>
                 <b>Destination: {selectedVehicleId === vehicle.id && selectedTrip ? selectedTrip.destination : vehicle.headsign}</b><br />
@@ -128,7 +142,7 @@ export default function MetroMap() {
                 {selectedVehicleId === vehicle.id && selectedTrip ? `${remainingStops.length} stops remaining · highlighted on map` : "Click to highlight its route"}<br />
                 {data?.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
               </Popup>
-            </CircleMarker>
+            </Marker>
           );
         })}
       </MapContainer>

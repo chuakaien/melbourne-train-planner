@@ -1,5 +1,5 @@
 declare module "gtfs-realtime-bindings" {
-  type Position = { latitude?: number; longitude?: number };
+  type Position = { latitude?: number; longitude?: number; bearing?: number };
   type Vehicle = {
     trip?: { tripId?: string; routeId?: string };
     position?: Position;
