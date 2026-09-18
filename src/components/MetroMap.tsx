@@ -10,6 +10,7 @@ type Station = Point & { id: string; name: string };
 type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number }> };
+type Departure = { departure: number; platform_code: string | null; headsign: string; route_name: string | null; route_color: string | null };
 
 function routeColour(routeId: string) {
   const colours = ["#ff6b6b", "#f6c945", "#6ee7b7", "#7dd3fc", "#c4b5fd", "#fb923c", "#f9a8d4"];
@@ -27,6 +28,12 @@ function trainIcon(colour: string, heading: number, selected: boolean) {
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
   });
+}
+
+function formatGtfsTime(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${String(hours % 24).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${hours >= 24 ? " +1" : ""}`;
 }
 
 function distanceKm(first: Point, second: Point) {
@@ -52,6 +59,8 @@ export default function MetroMap() {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<TripPath | null>(null);
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const [stationDepartures, setStationDepartures] = useState<Departure[] | null>(null);
   const [location, setLocation] = useState<Point | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showNearby, setShowNearby] = useState(false);
@@ -100,6 +109,17 @@ export default function MetroMap() {
     }
   }
 
+  async function selectStation(station: Station) {
+    setSelectedStationId(station.id);
+    setStationDepartures(null);
+    try {
+      const response = await fetch(`/api/stations/${encodeURIComponent(station.id)}/departures`);
+      if (response.ok) setStationDepartures(((await response.json()) as { departures: Departure[] }).departures);
+    } catch {
+      setStationDepartures([]);
+    }
+  }
+
   function locateMe() {
     if (location) { setShowNearby(true); return; }
     if (!navigator.geolocation) { setLocationError("Location is not supported by this browser."); return; }
@@ -118,8 +138,11 @@ export default function MetroMap() {
         <RecenterMap position={location} />
 
         {showStations && data?.stations.map((station) => (
-          <CircleMarker key={station.id} center={[station.latitude, station.longitude]} radius={3} pathOptions={{ color: "#06324a", fillColor: "#d5f253", fillOpacity: 0.9, weight: 1 }}>
-            <Popup><b>{station.name}</b><br />Scheduled departures available</Popup>
+          <CircleMarker key={station.id} center={[station.latitude, station.longitude]} radius={4} eventHandlers={{ click: () => { void selectStation(station); } }} pathOptions={{ color: "#06324a", fillColor: "#d5f253", fillOpacity: 0.9, weight: 1 }}>
+            <Popup>
+              <b>{station.name}</b><br />
+              {selectedStationId !== station.id || stationDepartures === null ? "Loading departures…" : stationDepartures.length === 0 ? "No scheduled departures soon." : stationDepartures.map((departure, index) => <span key={`${departure.departure}-${index}`}><b>{formatGtfsTime(Number(departure.departure))}</b> · {departure.headsign} · Platform {departure.platform_code ?? "—"}<br /></span>)}
+            </Popup>
           </CircleMarker>
         ))}
 

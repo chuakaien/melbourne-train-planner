@@ -62,7 +62,7 @@ export async function GET() {
   const pool = getPool();
   const [stations, vehicleRows, realtimeVehicles] = await Promise.all([
     pool.query(
-      "select min(id) id, name, avg(latitude) latitude, avg(longitude) longitude from stops where parent_station is not null group by name order by name",
+      "select id, name, latitude, longitude from stops where id in (select distinct parent_station from stops where parent_station is not null) order by name",
     ),
     pool.query<DbVehicle>(
       `with active_services as (
