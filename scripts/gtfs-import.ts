@@ -8,32 +8,70 @@ import { getPool } from "../src/lib/db/client";
 import { gtfsTimeToSeconds } from "../src/lib/gtfs/time";
 
 type Row = Record<string, string>;
-async function main() {
-dotenv.config({ path: ".env.local" });
+type Feed = { stops: Row[]; routes: Row[]; trips: Row[]; times: Row[]; transfers: Row[]; calendars: Row[]; exceptions: Row[] };
+
 const csv = (file: string): Row[] => parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""), { columns: true, skip_empty_lines: true, trim: true });
 const value = (row: Row, name: string) => row[name] || null;
-if (!existsSync("data/gtfs.zip")) throw new Error("Missing data/gtfs.zip. Run npm run gtfs:download first.");
-const workspace = mkdtempSync(join(tmpdir(), "metro-gtfs-"));
-execFileSync("unzip", ["-qq", "data/gtfs.zip", "2/google_transit.zip", "-d", workspace]);
-execFileSync("unzip", ["-qq", join(workspace, "2/google_transit.zip"), "-d", join(workspace, "feed")]);
-const feed = join(workspace, "feed");
-const pool = getPool(); const client = await pool.connect();
-try {
-  await client.query("BEGIN");
-  await client.query(readFileSync("migrations/0000_gtfs.sql", "utf8"));
-  await client.query(readFileSync("migrations/0001_routes.sql", "utf8"));
-  await client.query("TRUNCATE stop_times, transfers, calendar_dates, calendars, trips, stops, routes CASCADE");
-  const stops = csv(join(feed, "stops.txt")); const routes = csv(join(feed, "routes.txt")); const trips = csv(join(feed, "trips.txt")); const times = csv(join(feed, "stop_times.txt")); const transfers = csv(join(feed, "transfers.txt")); const calendars = csv(join(feed, "calendar.txt")); const exceptions = csv(join(feed, "calendar_dates.txt"));
-  // Bulk inserts run through the same session so the import is atomic.
-  const run = async (table: string, columns: string[], rows: unknown[][]) => { for (let start = 0; start < rows.length; start += 500) { const batch = rows.slice(start, start + 500); const args = batch.flat(); const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES ${batch.map((row, i) => `(${row.map((_, j) => `$${i * columns.length + j + 1}`).join(",")})`).join(",")}`; await client.query(sql, args); } };
-  await run("stops", ["id","name","latitude","longitude","parent_station"], stops.map(r => [r.stop_id,r.stop_name,Number(r.stop_lat),Number(r.stop_lon),value(r,"parent_station")]));
-  await run("routes", ["id","short_name","long_name","color"], routes.map(r => [r.route_id,value(r,"route_short_name"),value(r,"route_long_name"),value(r,"route_color")]));
-  await run("trips", ["id","route_id","service_id","headsign","block_id"], trips.map(r => [r.trip_id,r.route_id,r.service_id,value(r,"trip_headsign"),value(r,"block_id")]));
-  await run("calendars", ["service_id","monday","tuesday","wednesday","thursday","friday","saturday","sunday","start_date","end_date"], calendars.map(r => [r.service_id,...["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map(d=>Number(r[d])),r.start_date,r.end_date]));
-  await run("calendar_dates", ["service_id","date","exception_type"], exceptions.map(r => [r.service_id,r.date,Number(r.exception_type)]));
-  await run("stop_times", ["trip_id","stop_id","arrival","departure","sequence","platform_code"], times.map(r => [r.trip_id,r.stop_id,gtfsTimeToSeconds(r.arrival_time),gtfsTimeToSeconds(r.departure_time),Number(r.stop_sequence),value(r,"platform_code")]));
-  await run("transfers", ["from_stop_id","to_stop_id","from_trip_id","to_trip_id","type","minimum_seconds"], transfers.map(r => [r.from_stop_id,r.to_stop_id,value(r,"from_trip_id"),value(r,"to_trip_id"),Number(r.transfer_type),r.min_transfer_time ? Number(r.min_transfer_time) : null]));
-  await client.query("COMMIT"); console.log(`GTFS import complete\nStations: ${stops.length}\nTrips: ${trips.length}\nStop times: ${times.length}\nIn-seat transfers: ${transfers.filter(r=>r.transfer_type === "4").length}`);
-} catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); await pool.end(); }
+const unique = (rows: Row[], key: string) => [...new Map(rows.map((row) => [row[key], row])).values()];
+const uniqueBy = (rows: Row[], key: (row: Row) => string) => [...new Map(rows.map((row) => [key(row), row])).values()];
+
+function extractFeed(workspace: string, folder: "1" | "2"): Feed {
+  execFileSync("unzip", ["-qq", "data/gtfs.zip", `${folder}/google_transit.zip`, "-d", workspace]);
+  const feed = join(workspace, folder);
+  execFileSync("unzip", ["-qq", join(feed, "google_transit.zip"), "-d", feed]);
+  return {
+    stops: csv(join(feed, "stops.txt")), routes: csv(join(feed, "routes.txt")), trips: csv(join(feed, "trips.txt")),
+    times: csv(join(feed, "stop_times.txt")), transfers: csv(join(feed, "transfers.txt")), calendars: csv(join(feed, "calendar.txt")), exceptions: csv(join(feed, "calendar_dates.txt")),
+  };
 }
+
+async function main() {
+  dotenv.config({ path: ".env.local" });
+  if (!existsSync("data/gtfs.zip")) throw new Error("Missing data/gtfs.zip. Run npm run gtfs:download first.");
+
+  const workspace = mkdtempSync(join(tmpdir(), "train-gtfs-"));
+  // Regional Train (Folder 1) first, then Metro (Folder 2) so shared station definitions use Metro's richer metadata.
+  const regional = extractFeed(workspace, "1");
+  const metro = extractFeed(workspace, "2");
+  const stops = unique([...regional.stops, ...metro.stops], "stop_id");
+  const routes = unique([...regional.routes, ...metro.routes], "route_id");
+  const trips = unique([...regional.trips, ...metro.trips], "trip_id");
+  const times = [...regional.times, ...metro.times];
+  const transfers = [...regional.transfers, ...metro.transfers];
+  const calendars = unique([...regional.calendars, ...metro.calendars], "service_id");
+  const exceptions = uniqueBy([...regional.exceptions, ...metro.exceptions], (row) => `${row.service_id}:${row.date}`);
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(readFileSync("migrations/0000_gtfs.sql", "utf8"));
+    await client.query(readFileSync("migrations/0001_routes.sql", "utf8"));
+    await client.query("TRUNCATE stop_times, transfers, calendar_dates, calendars, trips, stops, routes CASCADE");
+    const run = async (table: string, columns: string[], rows: unknown[][]) => {
+      for (let start = 0; start < rows.length; start += 500) {
+        const batch = rows.slice(start, start + 500);
+        const args = batch.flat();
+        const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES ${batch.map((row, index) => `(${row.map((_, column) => `$${index * columns.length + column + 1}`).join(",")})`).join(",")}`;
+        await client.query(sql, args);
+      }
+    };
+    await run("stops", ["id", "name", "latitude", "longitude", "parent_station"], stops.map((row) => [row.stop_id, row.stop_name, Number(row.stop_lat), Number(row.stop_lon), value(row, "parent_station")]));
+    await run("routes", ["id", "short_name", "long_name", "color"], routes.map((row) => [row.route_id, value(row, "route_short_name"), value(row, "route_long_name"), value(row, "route_color")]));
+    await run("trips", ["id", "route_id", "service_id", "headsign", "block_id"], trips.map((row) => [row.trip_id, row.route_id, row.service_id, value(row, "trip_headsign"), value(row, "block_id")]));
+    await run("calendars", ["service_id", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "start_date", "end_date"], calendars.map((row) => [row.service_id, ...["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => Number(row[day])), row.start_date, row.end_date]));
+    await run("calendar_dates", ["service_id", "date", "exception_type"], exceptions.map((row) => [row.service_id, row.date, Number(row.exception_type)]));
+    await run("stop_times", ["trip_id", "stop_id", "arrival", "departure", "sequence", "platform_code"], times.map((row) => [row.trip_id, row.stop_id, gtfsTimeToSeconds(row.arrival_time), gtfsTimeToSeconds(row.departure_time), Number(row.stop_sequence), value(row, "platform_code")]));
+    await run("transfers", ["from_stop_id", "to_stop_id", "from_trip_id", "to_trip_id", "type", "minimum_seconds"], transfers.map((row) => [row.from_stop_id, row.to_stop_id, value(row, "from_trip_id"), value(row, "to_trip_id"), Number(row.transfer_type), row.min_transfer_time ? Number(row.min_transfer_time) : null]));
+    await client.query("COMMIT");
+    console.log(`GTFS import complete\nMetro + V/Line stations: ${stops.length}\nRoutes: ${routes.length}\nTrips: ${trips.length}\nStop times: ${times.length}`);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 main().catch((error: unknown) => { console.error(error); process.exitCode = 1; });

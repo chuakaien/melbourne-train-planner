@@ -10,6 +10,7 @@ type DbVehicle = {
   route_id: string;
   route_name: string | null;
   route_color: string | null;
+  network: "metro" | "vline";
   headsign: string | null;
   from_latitude: number;
   from_longitude: number;
@@ -73,6 +74,7 @@ export async function GET() {
          select added.service_id from calendar_dates added where added.date = $1 and added.exception_type = 1
        )
        select t.id as trip_id, t.route_id, t.headsign, r.short_name as route_name, r.color as route_color,
+              case when t.route_id like 'aus:vic:vic-01-%' then 'vline' else 'metro' end as network,
               previous_stop.latitude as from_latitude, previous_stop.longitude as from_longitude,
               next_stop.latitude as to_latitude, next_stop.longitude as to_longitude,
               previous_time.departure, next_time.arrival
@@ -98,8 +100,7 @@ export async function GET() {
        cross join lateral (
          select next_time.latitude, next_time.longitude
        ) next_stop
-       order by t.id
-       limit 180`,
+       order by t.id`,
       [clock.date, clock.seconds],
     ),
     fetchRealtimeMetroVehicles(),
@@ -128,6 +129,7 @@ export async function GET() {
             latitude: vehicle.latitude,
             longitude: vehicle.longitude,
             heading: vehicle.heading ?? 0,
+            network: "metro",
           };
         }),
         asOf: new Date().toISOString(),
@@ -149,6 +151,7 @@ export async function GET() {
       latitude: vehicle.from_latitude + (vehicle.to_latitude - vehicle.from_latitude) * progress,
       longitude: vehicle.from_longitude + (vehicle.to_longitude - vehicle.from_longitude) * progress,
       heading: bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
+      network: vehicle.network,
     };
   });
 

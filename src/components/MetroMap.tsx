@@ -7,7 +7,7 @@ import "leaflet/dist/leaflet.css";
 
 type Point = { latitude: number; longitude: number };
 type Station = Point & { id: string; name: string };
-type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number };
+type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: "metro" | "vline" };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number }> };
 type Departure = { departure: number; platform_code: string | null; headsign: string; route_name: string | null; route_color: string | null };
@@ -56,6 +56,7 @@ export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
   const [showStations, setShowStations] = useState(true);
   const [showLinePicker, setShowLinePicker] = useState(false);
+  const [showVline, setShowVline] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<TripPath | null>(null);
@@ -85,10 +86,11 @@ export default function MetroMap() {
   const updatedAt = data
     ? new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "Australia/Melbourne" }).format(new Date(data.asOf))
     : "Connecting…";
-  const lines = [...new Map((data?.vehicles ?? []).map((vehicle) => [vehicle.routeId, vehicle])).values()]
+  const networkVehicles = (data?.vehicles ?? []).filter((vehicle) => showVline || vehicle.network === "metro");
+  const lines = [...new Map(networkVehicles.map((vehicle) => [vehicle.routeId, vehicle])).values()]
     .sort((first, second) => first.routeName.localeCompare(second.routeName));
   const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
-  const visibleVehicles = (data?.vehicles ?? []).filter((vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId);
+  const visibleVehicles = networkVehicles.filter((vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId);
   const selectedVehicle = (data?.vehicles ?? []).find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
   const remainingStops = selectedVehicle && selectedTrip
     ? selectedTrip.stops.slice(selectedTrip.stops.reduce((closest, stop, index) =>
@@ -172,6 +174,7 @@ export default function MetroMap() {
 
       <div className="map-controls" aria-label="Map display controls">
         <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby trains" : "Locate me"}</button>
+        <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }}><span className="vline-dot" />{showVline ? "Hide V/Line" : "Show V/Line"}</button>
         <button type="button" className={showLinePicker ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowLinePicker((visible) => !visible)} aria-expanded={showLinePicker}>
           <span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#d5f253" }} />{selectedLine ? selectedLine.routeName : "All lines"}
         </button>
