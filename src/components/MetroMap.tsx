@@ -196,9 +196,9 @@ export default function MetroMap() {
           <small>SELECTED TRAIN</small>
           <b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
           <p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p>
-          {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station departures">
+          {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station times">
             {remainingStops.map((stop, index) => <li key={`${stop.sequence}-${stop.name}`}>
-              <time dateTime={`PT${stop.arrival}S`}>Arr {formatGtfsTime(stop.arrival)}<br />Dep {formatGtfsTime(stop.departure)}</time>
+              <time dateTime={`PT${stop.departure}S`}>{formatGtfsTime(stop.departure)}</time>
               <span>{stop.name.replace(/ Station$/, "")}</span>
               {index === 0 && <em>Next</em>}
             </li>)}
