@@ -9,7 +9,7 @@ type Point = { latitude: number; longitude: number };
 type Station = Point & { id: string; name: string };
 type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: "metro" | "vline" };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
-type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number }>; shape: Array<Point & { sequence: number }> };
+type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number; arrival: number; departure: number }>; shape: Array<Point & { sequence: number }> };
 type Departure = { departure: number; platform_code: string | null; headsign: string; route_name: string | null; route_color: string | null };
 
 function routeColour(routeId: string) {
@@ -190,10 +190,22 @@ export default function MetroMap() {
         </div>}
       </div>
 
-      {selectedVehicle && <div className="trip-panel">
+      {selectedVehicle && <section className="trip-panel" aria-label="Selected train timetable">
         <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
-        <div><small>SELECTED TRAIN</small><b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b><p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p><button type="button" className="overview-button" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); }}>← Back to overview</button></div>
-      </div>}
+        <div className="trip-panel-content">
+          <small>SELECTED TRAIN</small>
+          <b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
+          <p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p>
+          {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station departures">
+            {remainingStops.map((stop, index) => <li key={`${stop.sequence}-${stop.name}`}>
+              <time dateTime={`PT${stop.arrival}S`}>Arr {formatGtfsTime(stop.arrival)}<br />Dep {formatGtfsTime(stop.departure)}</time>
+              <span>{stop.name.replace(/ Station$/, "")}</span>
+              {index === 0 && <em>Next</em>}
+            </li>)}
+          </ol>}
+          <button type="button" className="overview-button" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); }}>← Back to overview</button>
+        </div>
+      </section>}
 
       {location && showNearby && <div className="nearby-panel"><button type="button" className="nearby-close" onClick={() => setShowNearby(false)} aria-label="Hide nearby trains">×</button><small>NEAREST {data?.positionSource === "realtime" ? "LIVE" : "SCHEDULED"} TRAINS</small>{nearbyVehicles.map(({ vehicle, distance }) => <button type="button" key={vehicle.id} onClick={() => { void selectVehicle(vehicle); }}><span className="line-dot" style={{ background: vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId) }} /><b>To {vehicle.headsign}</b><em>{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}</em></button>)}<p>Location is used only in this browser.</p></div>}
       {locationError && <div className="location-error" role="status">{locationError}</div>}
