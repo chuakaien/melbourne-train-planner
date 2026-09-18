@@ -9,7 +9,7 @@ type Point = { latitude: number; longitude: number };
 type Station = Point & { id: string; name: string };
 type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: "metro" | "vline" };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
-type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number }> };
+type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number }>; shape: Array<Point & { sequence: number }> };
 type Departure = { departure: number; platform_code: string | null; headsign: string; route_name: string | null; route_color: string | null };
 
 function routeColour(routeId: string) {
@@ -92,10 +92,14 @@ export default function MetroMap() {
   const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
   const visibleVehicles = networkVehicles.filter((vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId);
   const selectedVehicle = (data?.vehicles ?? []).find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
-  const remainingStops = selectedVehicle && selectedTrip
-    ? selectedTrip.stops.slice(selectedTrip.stops.reduce((closest, stop, index) =>
-        distanceKm(stop, selectedVehicle) < distanceKm(selectedTrip.stops[closest], selectedVehicle) ? index : closest, 0))
-    : [];
+  const pointsFromCurrentPosition = <T extends Point>(points: T[]) => {
+    if (!selectedVehicle || points.length === 0) return [];
+    const closest = points.reduce((closestIndex, point, index) =>
+      distanceKm(point, selectedVehicle) < distanceKm(points[closestIndex], selectedVehicle) ? index : closestIndex, 0);
+    return points.slice(closest);
+  };
+  const remainingStops = selectedTrip ? pointsFromCurrentPosition(selectedTrip.stops) : [];
+  const remainingTrack = selectedTrip ? pointsFromCurrentPosition(selectedTrip.shape.length ? selectedTrip.shape : selectedTrip.stops) : [];
   const nearbyVehicles = location
     ? visibleVehicles.map((vehicle) => ({ vehicle, distance: distanceKm(location, vehicle) })).sort((first, second) => first.distance - second.distance).slice(0, 3)
     : [];
@@ -148,8 +152,8 @@ export default function MetroMap() {
           </CircleMarker>
         ))}
 
-        {selectedVehicle && remainingStops.length > 0 && (
-          <Polyline positions={[[selectedVehicle.latitude, selectedVehicle.longitude], ...remainingStops.map((stop) => [stop.latitude, stop.longitude] as [number, number])]} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.85 }} />
+        {selectedVehicle && remainingTrack.length > 1 && (
+          <Polyline positions={[[selectedVehicle.latitude, selectedVehicle.longitude], ...remainingTrack.map((point) => [point.latitude, point.longitude] as [number, number])]} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.85 }} />
         )}
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
