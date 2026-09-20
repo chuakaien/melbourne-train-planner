@@ -72,6 +72,7 @@ export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
   const [showStations, setShowStations] = useState(true);
   const [showLinePicker, setShowLinePicker] = useState(false);
+  const [showMetro, setShowMetro] = useState(true);
   const [showVline, setShowVline] = useState(true);
   const [showTrams, setShowTrams] = useState(true);
   const [showBuses, setShowBuses] = useState(false);
@@ -111,7 +112,7 @@ export default function MetroMap() {
     ? new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "Australia/Melbourne" }).format(new Date(data.asOf))
     : "Connecting…";
   const networkVehicles = (data?.vehicles ?? []).filter((vehicle) =>
-    (showVline || vehicle.network !== "vline") && (showTrams || vehicle.network !== "tram") && (showBuses || vehicle.network !== "bus"),
+    (showMetro || vehicle.network !== "metro") && (showVline || vehicle.network !== "vline") && (showTrams || vehicle.network !== "tram") && (showBuses || vehicle.network !== "bus"),
   );
   const lines = [...new Map(networkVehicles.map((vehicle) => [vehicle.routeId, vehicle])).values()]
     .sort((first, second) => first.routeName.localeCompare(second.routeName));
@@ -205,9 +206,15 @@ export default function MetroMap() {
 
       <div className="map-controls" aria-label="Map display controls">
         <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby services" : "Locate me"}</button>
-        <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }}><span className="vline-dot" />{showVline ? "Hide V/Line" : "Show V/Line"}</button>
-        <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }}><span className="tram-dot" />{showTrams ? "Hide trams" : "Show trams"}</button>
-        <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }}><span className="bus-dot" />{showBuses ? "Hide buses" : "Show buses"}</button>
+        <div className="layer-panel" aria-label="Service layers">
+          <span className="control-label">SERVICE LAYERS</span>
+          <div className="layer-grid">
+            <button type="button" className={showMetro ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowMetro((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showMetro}><span className="metro-dot" />Metro trains</button>
+            <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showVline}><span className="vline-dot" />V/Line</button>
+            <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showTrams}><span className="tram-dot" />Trams</button>
+            <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showBuses}><span className="bus-dot" />Buses</button>
+          </div>
+        </div>
         <button type="button" className={showLinePicker ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowLinePicker((visible) => !visible)} aria-expanded={showLinePicker}>
           <span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#d5f253" }} />{selectedLine ? selectedLine.routeName : "All lines"}
         </button>

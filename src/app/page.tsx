@@ -8,8 +8,8 @@ export default function Home() {
   return (
     <main className="live">
       <header>
-        <b>↗ Melbourne Transit Radar</b>
-        <span>● Network map</span>
+        <b className="brand"><i className="radar-mark" aria-hidden="true" /><span>Melbourne Transit Radar</span></b>
+        <span className="network-state"><i aria-hidden="true" />Live network</span>
       </header>
 
       <section className="map-shell">
