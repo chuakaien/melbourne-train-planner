@@ -9,7 +9,7 @@ export default function Home() {
     <main className="live">
       <header>
         <b className="brand"><i className="radar-mark" aria-hidden="true" /><span>Melbourne Transit Radar</span></b>
-        <span className="network-state"><i aria-hidden="true" />Live network</span>
+        <button type="button" className="network-state" onClick={() => window.dispatchEvent(new Event("toggle-transit-controls"))}><i aria-hidden="true" />Map controls</button>
       </header>
 
       <section className="map-shell">

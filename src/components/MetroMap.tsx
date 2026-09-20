@@ -83,6 +83,7 @@ export default function MetroMap() {
   const [showVline, setShowVline] = useState(true);
   const [showTrams, setShowTrams] = useState(true);
   const [showBuses, setShowBuses] = useState(false);
+  const [showControls, setShowControls] = useState(false);
   const [isRouteFinderOpen, setIsRouteFinderOpen] = useState(false);
   const [routeQuery, setRouteQuery] = useState("");
   const [bounds, setBounds] = useState<Bounds>({ south: -38.15, north: -37.45, west: 144.45, east: 145.5 });
@@ -98,6 +99,12 @@ export default function MetroMap() {
 
   const updateBounds = useCallback((next: Bounds) => {
     setBounds((current) => Math.abs(current.south - next.south) < 0.01 && Math.abs(current.north - next.north) < 0.01 && Math.abs(current.west - next.west) < 0.01 && Math.abs(current.east - next.east) < 0.01 ? current : next);
+  }, []);
+
+  useEffect(() => {
+    const toggleControls = () => setShowControls((open) => !open);
+    window.addEventListener("toggle-transit-controls", toggleControls);
+    return () => window.removeEventListener("toggle-transit-controls", toggleControls);
   }, []);
 
   useEffect(() => {
@@ -197,7 +204,7 @@ export default function MetroMap() {
           </CircleMarker>
         ))}
 
-        {selectedVehicle && travelledTrack.length > 1 && <Polyline positions={travelledTrack.map((point) => [point.latitude, point.longitude] as [number, number])} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.22 }} />}
+        {selectedVehicle && travelledTrack.length > 1 && <Polyline positions={travelledTrack.map((point) => [point.latitude, point.longitude] as [number, number])} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 6, opacity: 0.52 }} />}
         {selectedVehicle && remainingTrack.length > 1 && <Polyline positions={[[selectedVehicle.latitude, selectedVehicle.longitude], ...remainingTrack.map((point) => [point.latitude, point.longitude] as [number, number])]} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.88 }} />}
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
@@ -220,7 +227,7 @@ export default function MetroMap() {
         })}
       </MapContainer>
 
-      <div className="map-controls" aria-label="Map display controls">
+      {showControls && <div className="map-controls" aria-label="Map display controls">
         <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby services" : "Locate me"}</button>
         <button type="button" className={showMetro ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowMetro((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showMetro}><span className="metro-dot" />{showMetro ? "Hide Metro trains" : "Show Metro trains"}</button>
         <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showVline}><span className="vline-dot" />{showVline ? "Hide V/Line" : "Show V/Line"}</button>
@@ -235,7 +242,7 @@ export default function MetroMap() {
           </div>}
         </div>
         <button type="button" className={showStations ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowStations((visible) => !visible)} aria-pressed={showStations}><span className="station-dot" />{showStations ? "Hide stations" : "Show stations"}</button>
-      </div>
+      </div>}
 
       {selectedVehicle && <section className={isTimetableExpanded ? "trip-panel is-expanded" : "trip-panel"} aria-label="Selected service timetable">
         <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
