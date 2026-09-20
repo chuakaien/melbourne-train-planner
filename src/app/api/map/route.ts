@@ -23,6 +23,7 @@ type DbVehicle = {
 };
 
 type ShapePoint = { shape_id: string; sequence: number; latitude: number; longitude: number };
+type ShapeSegment = { path: ShapePoint[]; lengths: number[]; totalLength: number };
 
 function serviceClock(now = new Date()) {
   const values = Object.fromEntries(
@@ -73,7 +74,7 @@ function closestShapePoint(points: ShapePoint[], latitude: number, longitude: nu
     distance(point, { latitude, longitude }) < distance(points[closest], { latitude, longitude }) ? index : closest, 0);
 }
 
-function projectOntoShape(vehicle: DbVehicle, points: ShapePoint[], progress: number) {
+function segmentForVehicle(vehicle: DbVehicle, points: ShapePoint[]): ShapeSegment | null {
   if (points.length < 2) return null;
   const fromIndex = closestShapePoint(points, vehicle.from_latitude, vehicle.from_longitude);
   const toIndex = closestShapePoint(points, vehicle.to_latitude, vehicle.to_longitude);
@@ -87,21 +88,23 @@ function projectOntoShape(vehicle: DbVehicle, points: ShapePoint[], progress: nu
   const lengths = path.slice(1).map((point, index) => distance(path[index], point));
   const totalLength = lengths.reduce((total, length) => total + length, 0);
   if (totalLength === 0) return null;
+  return { path, lengths, totalLength };
+}
 
-  let remaining = totalLength * progress;
-  for (let index = 0; index < lengths.length; index += 1) {
-    const segmentLength = lengths[index];
-    if (remaining > segmentLength && index < lengths.length - 1) {
+function projectSegment(segment: ShapeSegment, progress: number, snapToShapePoint = true) {
+  let remaining = segment.totalLength * progress;
+  for (let index = 0; index < segment.lengths.length; index += 1) {
+    const segmentLength = segment.lengths[index];
+    if (remaining > segmentLength && index < segment.lengths.length - 1) {
       remaining -= segmentLength;
       continue;
     }
     const ratio = segmentLength === 0 ? 0 : remaining / segmentLength;
-    const from = path[index];
-    const to = path[index + 1];
-    // Some official shapes contain long, sparse segments. Snap to a recorded
-    // geometry point so a timetable projection never appears between tracks.
-    const point = ratio < 0.5 ? from : to;
-    return { latitude: point.latitude, longitude: point.longitude, heading: bearing(from.latitude, from.longitude, to.latitude, to.longitude) };
+    const from = segment.path[index];
+    const to = segment.path[index + 1];
+    const latitude = snapToShapePoint ? (ratio < 0.5 ? from.latitude : to.latitude) : from.latitude + (to.latitude - from.latitude) * ratio;
+    const longitude = snapToShapePoint ? (ratio < 0.5 ? from.longitude : to.longitude) : from.longitude + (to.longitude - from.longitude) * ratio;
+    return { latitude, longitude, heading: bearing(from.latitude, from.longitude, to.latitude, to.longitude) };
   }
   return null;
 }
@@ -224,7 +227,18 @@ export async function GET(request: NextRequest) {
   const vehicles = vehicleRows.rows.map((vehicle) => {
     const duration = Math.max(1, vehicle.arrival - vehicle.departure);
     const progress = Math.max(0, Math.min(1, (clock.seconds - vehicle.departure) / duration));
-    const projected = vehicle.shape_id ? projectOntoShape(vehicle, shapes.get(vehicle.shape_id) ?? [], progress) : null;
+    const segment = vehicle.shape_id ? segmentForVehicle(vehicle, shapes.get(vehicle.shape_id) ?? []) : null;
+    // Keep the base position on an official geometry point, while supplying a
+    // lightweight 30-second path for smooth, browser-only timetable animation.
+    const projected = segment ? projectSegment(segment, progress) : null;
+    const motionPath = segment
+      ? Array.from({ length: 16 }, (_, index) => {
+          const offset = index * 2_000;
+          const futureProgress = Math.max(0, Math.min(1, (clock.seconds + offset - vehicle.departure) / duration));
+          const point = projectSegment(segment, futureProgress, false);
+          return point ? { ...point, offset } : null;
+        }).filter((point): point is { latitude: number; longitude: number; heading: number; offset: number } => point !== null)
+      : [];
     return {
       id: vehicle.trip_id,
       routeId: vehicle.route_id,
@@ -237,6 +251,7 @@ export async function GET(request: NextRequest) {
       longitude: projected?.longitude ?? vehicle.from_longitude,
       heading: projected?.heading ?? bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
       network: mapNetwork(vehicle.route_type, vehicle.route_id),
+      motionPath,
     };
   });
 

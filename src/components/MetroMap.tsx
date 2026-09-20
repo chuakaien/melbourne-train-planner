@@ -8,7 +8,8 @@ import "leaflet/dist/leaflet.css";
 type Point = { latitude: number; longitude: number };
 type Station = Point & { id: string; name: string };
 type Network = "metro" | "vline" | "tram" | "bus";
-type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: Network };
+type MotionPoint = Point & { heading: number; offset: number };
+type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: Network; motionPath?: MotionPoint[] };
 type Bounds = { south: number; north: number; west: number; east: number };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number; arrival: number; departure: number }>; shape: Array<Point & { sequence: number }> };
@@ -54,6 +55,26 @@ function distanceKm(first: Point, second: Point) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function interpolateHeading(from: number, to: number, progress: number) {
+  const difference = ((to - from + 540) % 360) - 180;
+  return (from + difference * progress + 360) % 360;
+}
+
+function animateVehicle(vehicle: Vehicle, asOf: string, now: number): Vehicle {
+  if (!vehicle.motionPath || vehicle.motionPath.length < 2) return vehicle;
+  const elapsed = Math.max(0, now - new Date(asOf).getTime());
+  const after = vehicle.motionPath.find((point) => point.offset >= elapsed) ?? vehicle.motionPath[vehicle.motionPath.length - 1];
+  const before = vehicle.motionPath[vehicle.motionPath.indexOf(after) - 1] ?? after;
+  const span = Math.max(1, after.offset - before.offset);
+  const progress = Math.max(0, Math.min(1, (elapsed - before.offset) / span));
+  return {
+    ...vehicle,
+    latitude: before.latitude + (after.latitude - before.latitude) * progress,
+    longitude: before.longitude + (after.longitude - before.longitude) * progress,
+    heading: interpolateHeading(before.heading, after.heading, progress),
+  };
+}
+
 function RecenterMap({ position }: { position: Point | null }) {
   const map = useMap();
   useEffect(() => {
@@ -96,6 +117,7 @@ export default function MetroMap() {
   const [location, setLocation] = useState<Point | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showNearby, setShowNearby] = useState(false);
+  const [animationTime, setAnimationTime] = useState(() => Date.now());
 
   const updateBounds = useCallback((next: Bounds) => {
     setBounds((current) => Math.abs(current.south - next.south) < 0.01 && Math.abs(current.north - next.north) < 0.01 && Math.abs(current.west - next.west) < 0.01 && Math.abs(current.east - next.east) < 0.01 ? current : next);
@@ -125,10 +147,28 @@ export default function MetroMap() {
     return () => { active = false; window.clearInterval(timer); };
   }, [bounds]);
 
+  useEffect(() => {
+    if (data?.positionSource !== "scheduled") return;
+    let frame = 0;
+    let lastPaint = 0;
+    const animate = (time: number) => {
+      if (time - lastPaint >= 100) {
+        lastPaint = time;
+        setAnimationTime(Date.now());
+      }
+      frame = window.requestAnimationFrame(animate);
+    };
+    frame = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frame);
+  }, [data?.asOf, data?.positionSource]);
+
   const updatedAt = data
     ? new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "Australia/Melbourne" }).format(new Date(data.asOf))
     : "Connecting…";
-  const networkVehicles = (data?.vehicles ?? []).filter((vehicle) =>
+  const displayedVehicles = data?.positionSource === "scheduled" && data
+    ? data.vehicles.map((vehicle) => animateVehicle(vehicle, data.asOf, animationTime))
+    : data?.vehicles ?? [];
+  const networkVehicles = displayedVehicles.filter((vehicle) =>
     (showMetro || vehicle.network !== "metro") && (showVline || vehicle.network !== "vline") && (showTrams || vehicle.network !== "tram") && (showBuses || vehicle.network !== "bus"),
   );
   const lines = [...new Map(networkVehicles.map((vehicle) => [vehicle.routeId, vehicle])).values()]
@@ -136,7 +176,7 @@ export default function MetroMap() {
   const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
   const matchingLines = lines.filter((line) => routeLabel(line).toLocaleLowerCase().includes(routeQuery.trim().toLocaleLowerCase()));
   const visibleVehicles = networkVehicles.filter((vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId);
-  const selectedVehicle = (data?.vehicles ?? []).find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
+  const selectedVehicle = displayedVehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
   const pointsFromCurrentPosition = <T extends Point>(points: T[]) => {
     if (!selectedVehicle || points.length === 0) return [];
     const closest = points.reduce((closestIndex, point, index) =>
