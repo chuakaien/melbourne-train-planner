@@ -69,6 +69,18 @@ cd /var/www/melbourne-train-planner
 docker compose --env-file .env.home -f docker-compose.home.yml up -d --build
 ```
 
+Each rebuild creates an old, untagged Docker image. Clean only this project's
+unreferenced images after a successful deployment with:
+
+```bash
+./scripts/home-docker-cleanup.sh
+```
+
+This intentionally does not run a server-wide Docker prune, so it cannot
+remove images or data belonging to the other projects on the home server. The
+Compose file also caps each app and database container's logs at 30 MB (three
+10 MB files) to prevent logs growing without limit.
+
 Import the latest official schedules after the database is healthy. This takes
 several minutes and needs to be repeated when the weekly feed is refreshed:
 
