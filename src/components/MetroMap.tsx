@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { divIcon } from "leaflet";
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 type Point = { latitude: number; longitude: number };
@@ -40,6 +40,34 @@ function trainIcon(colour: string, heading: number, selected: boolean) {
     popupAnchor: [0, -size / 2],
   });
 }
+
+const VehicleMarker = memo(function VehicleMarker({
+  vehicle, isSelected, isDimmed, onSelect, positionSource, trip, remainingStopCount,
+}: {
+  vehicle: Vehicle;
+  isSelected: boolean;
+  isDimmed: boolean;
+  onSelect: (vehicleId: string) => void;
+  positionSource: MapData["positionSource"] | undefined;
+  trip: TripPath | null;
+  remainingStopCount: number;
+}) {
+  const colour = vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
+  // The marker moves frequently, but its event callback stays stable so taps
+  // are not lost while Leaflet updates the visual position.
+  const eventHandlers = useMemo(() => ({ click: () => onSelect(vehicle.id) }), [onSelect, vehicle.id]);
+  return (
+    <Marker position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, vehicle.heading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={eventHandlers}>
+      <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
+      <Popup>
+        <b>Destination: {isSelected && trip ? trip.destination : vehicle.headsign}</b><br />
+        {routeLabel(vehicle)} line<br />
+        {isSelected && trip ? `${remainingStopCount} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
+        {positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}
+      </Popup>
+    </Marker>
+  );
+});
 
 function formatGtfsTime(seconds: number) {
   const hours = Math.floor(seconds / 3600);
@@ -194,7 +222,7 @@ export default function MetroMap() {
     ? visibleVehicles.map((vehicle) => ({ vehicle, distance: distanceKm(location, vehicle) })).sort((first, second) => first.distance - second.distance).slice(0, 3)
     : [];
 
-  async function selectVehicle(vehicle: Vehicle) {
+  const selectVehicle = useCallback(async (vehicle: Vehicle) => {
     setSelectedVehicleId(vehicle.id);
     setSelectedTrip(null);
     setIsTimetableExpanded(false);
@@ -204,7 +232,12 @@ export default function MetroMap() {
     } catch {
       // A realtime vehicle without a matching schedule can still show its headsign.
     }
-  }
+  }, []);
+
+  const selectVehicleById = useCallback((vehicleId: string) => {
+    const vehicle = data?.vehicles.find((candidate) => candidate.id === vehicleId);
+    if (vehicle) void selectVehicle(vehicle);
+  }, [data?.vehicles, selectVehicle]);
 
   async function selectStation(station: Station) {
     setSelectedStationId(station.id);
@@ -230,8 +263,9 @@ export default function MetroMap() {
 
   return (
     <div className="map-root">
-      <MapContainer center={[-37.8136, 144.9631]} zoom={11} className="metro-map" style={{ height: "100%", width: "100%" }}>
+      <MapContainer center={[-37.8136, 144.9631]} zoom={11} zoomControl={false} className="metro-map" style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <ZoomControl position="bottomright" />
         <RecenterMap position={location} />
         <MapViewportReporter onChange={updateBounds} />
 
@@ -249,22 +283,7 @@ export default function MetroMap() {
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
 
-        {visibleVehicles.map((vehicle) => {
-          const colour = vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
-          const isSelected = selectedVehicleId === vehicle.id;
-          const isDimmed = Boolean(selectedVehicleId) && !isSelected;
-          return (
-            <Marker key={vehicle.id} position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, vehicle.heading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={{ click: () => { void selectVehicle(vehicle); } }}>
-              <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
-              <Popup>
-                <b>Destination: {selectedVehicleId === vehicle.id && selectedTrip ? selectedTrip.destination : vehicle.headsign}</b><br />
-                {routeLabel(vehicle)} line<br />
-                {selectedVehicleId === vehicle.id && selectedTrip ? `${remainingStops.length} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
-                {data?.positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}
-              </Popup>
-            </Marker>
-          );
-        })}
+        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} isSelected={selectedVehicleId === vehicle.id} isDimmed={Boolean(selectedVehicleId) && selectedVehicleId !== vehicle.id} onSelect={selectVehicleById} positionSource={data?.positionSource} trip={selectedTrip} remainingStopCount={remainingStops.length} />)}
       </MapContainer>
 
       {showControls && <div className="map-controls" aria-label="Map display controls">
