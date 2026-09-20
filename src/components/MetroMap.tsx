@@ -158,12 +158,17 @@ export default function MetroMap() {
     return () => window.removeEventListener("toggle-transit-controls", toggleControls);
   }, []);
 
+  // The API only uses viewport bounds to limit the optional bus layer. Keep
+  // train and tram timetable animation independent of pan/zoom events.
+  const mapQuery = useMemo(() => showBuses
+    ? `?${new URLSearchParams(Object.entries(bounds).map(([key, value]) => [key, String(value)]))}`
+    : "", [bounds, showBuses]);
+
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
-        const query = new URLSearchParams(Object.entries(bounds).map(([key, value]) => [key, String(value)]));
-        const response = await fetch(`/api/map?${query}`, { cache: "no-store" });
+        const response = await fetch(`/api/map${mapQuery}`, { cache: "no-store" });
         if (!response.ok) return;
         const next = (await response.json()) as MapData;
         if (active) setData(next);
@@ -174,7 +179,7 @@ export default function MetroMap() {
     void load();
     const timer = window.setInterval(load, 30_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [bounds]);
+  }, [mapQuery]);
 
   useEffect(() => {
     if (data?.positionSource !== "scheduled") return;
