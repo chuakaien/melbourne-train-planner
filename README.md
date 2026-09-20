@@ -63,6 +63,10 @@ The database is a private Docker volume on the home server and is not exposed
 to the internet or shared with other projects. Nginx configuration and the
 wider server runbook live in `chuakaien/home-server-config`.
 
+For a future zero-downtime feed refresh, import into a separate staging
+database and switch the application to it only after the import succeeds. The
+initial full import can take several minutes because of the statewide bus feed.
+
 ## Data attribution and limitations
 
 Uses public transport data provided by the Victorian Department of Transport and Planning. This is an independent application and is not affiliated with PTV or the Victorian Government. The shipped interface is an illustrative fixture until a production GTFS import and database are configured; see [validation](docs/validation.md).

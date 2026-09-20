@@ -23,7 +23,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      MELBOURNE_TRAIN_DATABASE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # A temporary external URL can be supplied during a first import; otherwise
+      # the app uses this stack's private PostgreSQL database.
+      MELBOURNE_TRAIN_DATABASE_DATABASE_URL: ${MELBOURNE_TRAIN_DATABASE_DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
     depends_on:
       db:
         condition: service_healthy
