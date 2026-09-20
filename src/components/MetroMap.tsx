@@ -75,6 +75,8 @@ export default function MetroMap() {
   const [showVline, setShowVline] = useState(true);
   const [showTrams, setShowTrams] = useState(true);
   const [showBuses, setShowBuses] = useState(false);
+  const [isRouteFinderOpen, setIsRouteFinderOpen] = useState(false);
+  const [routeQuery, setRouteQuery] = useState("");
   const [bounds, setBounds] = useState<Bounds>({ south: -38.15, north: -37.45, west: 144.45, east: 145.5 });
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export default function MetroMap() {
   const lines = [...new Map(networkVehicles.map((vehicle) => [vehicle.routeId, vehicle])).values()]
     .sort((first, second) => first.routeName.localeCompare(second.routeName));
   const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
+  const matchingLines = lines.filter((line) => line.routeName.toLocaleLowerCase().includes(routeQuery.trim().toLocaleLowerCase()));
   const visibleVehicles = networkVehicles.filter((vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId);
   const selectedVehicle = (data?.vehicles ?? []).find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
   const pointsFromCurrentPosition = <T extends Point>(points: T[]) => {
@@ -211,10 +214,14 @@ export default function MetroMap() {
         <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showVline}><span className="vline-dot" />{showVline ? "Hide V/Line" : "Show V/Line"}</button>
         <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showTrams}><span className="tram-dot" />{showTrams ? "Hide trams" : "Show trams"}</button>
         <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showBuses}><span className="bus-dot" />{showBuses ? "Hide buses" : "Show buses"}</button>
-        <label className="route-select"><span>Route</span><select value={selectedRouteId ?? ""} onChange={(event) => setSelectedRouteId(event.target.value || null)} aria-label="Filter by route">
-          <option value="">All lines</option>
-          {lines.map((line) => <option key={line.routeId} value={line.routeId}>{line.routeName}</option>)}
-        </select></label>
+        <div className="route-finder">
+          <button type="button" className={isRouteFinderOpen ? "map-toggle is-active" : "map-toggle"} onClick={() => setIsRouteFinderOpen((open) => !open)} aria-expanded={isRouteFinderOpen}><span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#9bea47" }} />{selectedLine ? selectedLine.routeName : "Find a route"}</button>
+          {isRouteFinderOpen && <div className="route-popover" role="dialog" aria-label="Find a route">
+            <input autoFocus value={routeQuery} onChange={(event) => setRouteQuery(event.target.value)} placeholder="Search routes" aria-label="Search routes" />
+            <button type="button" className={!selectedRouteId ? "route-option is-active" : "route-option"} onClick={() => { setSelectedRouteId(null); setRouteQuery(""); setIsRouteFinderOpen(false); }}><span className="line-dot" style={{ background: "#9bea47" }} />All lines</button>
+            <div className="route-results">{matchingLines.map((line) => <button type="button" key={line.routeId} className={selectedRouteId === line.routeId ? "route-option is-active" : "route-option"} onClick={() => { setSelectedRouteId(line.routeId); setRouteQuery(""); setIsRouteFinderOpen(false); }}><span className="line-dot" style={{ background: line.routeColor ? `#${line.routeColor}` : routeColour(line.routeId) }} />{line.routeName}</button>)}{matchingLines.length === 0 && <p>No matching route</p>}</div>
+          </div>}
+        </div>
         <button type="button" className={showStations ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowStations((visible) => !visible)} aria-pressed={showStations}><span className="station-dot" />{showStations ? "Hide stations" : "Show stations"}</button>
       </div>
 
