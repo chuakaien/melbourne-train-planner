@@ -90,6 +90,31 @@ several minutes because of the statewide bus feed.
 ./scripts/home-gtfs-refresh.sh
 ```
 
+### Automatic weekly refresh
+
+The repository includes a systemd timer that runs the safe refresh at about
+03:30 every Sunday in the `Australia/Melbourne` time zone. It has a small
+random delay to avoid a fixed download spike, and catches up after a server
+outage. The map stays available while it imports the new data.
+
+Enable it once on the home server after deploying the repository:
+
+```bash
+cd /var/www/melbourne-train-planner
+./scripts/install-refresh-timer.sh
+```
+
+Check the next scheduled run and recent output with:
+
+```bash
+sudo systemctl list-timers melbourne-transport-radar-refresh.timer
+sudo journalctl -u melbourne-transport-radar-refresh.service -n 100 --no-pager
+```
+
+The timer definition and installer are version-controlled in
+`deploy/systemd/` and `scripts/install-refresh-timer.sh`. If they change in a
+future release, pull the repository and run the installer again.
+
 ## Data attribution and limitations
 
 Uses public transport data provided by the Victorian Department of Transport and Planning. This is an independent application and is not affiliated with PTV or the Victorian Government. The shipped interface is an illustrative fixture until a production GTFS import and database are configured; see [validation](docs/validation.md).
