@@ -57,29 +57,19 @@ function trainIcon(colour: string, heading: number, selected: boolean) {
 }
 
 const VehicleMarker = memo(function VehicleMarker({
-  vehicle, iconHeading, isSelected, isDimmed, onSelect, positionSource, trip, remainingStopCount,
+  vehicle, iconHeading, isSelected, isDimmed, onSelect,
 }: {
   vehicle: Vehicle;
   iconHeading: number;
   isSelected: boolean;
   isDimmed: boolean;
   onSelect: (vehicleId: string) => void;
-  positionSource: MapData["positionSource"] | undefined;
-  trip: TripPath | null;
-  remainingStopCount: number;
 }) {
   const colour = vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
   const eventHandlers = useMemo(() => ({ click: () => onSelect(vehicle.id) }), [onSelect, vehicle.id]);
   return (
     <Marker position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, iconHeading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={eventHandlers}>
       <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
-      <Popup autoPan={false}>
-        <div className="service-popup-content">
-          <span className="popup-service-meta"><span className="service-badge" style={serviceBadgeStyle(vehicle)}>{serviceLabel(vehicle)}</span>{positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}</span>
-          <b>Destination: {isSelected && trip ? trip.destination : vehicle.headsign}</b>
-          {isSelected && trip && <span>{remainingStopCount} stops remaining · full trip highlighted on map</span>}
-        </div>
-      </Popup>
     </Marker>
   );
 });
@@ -266,7 +256,7 @@ export default function MetroMap() {
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
 
-        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} iconHeading={baseVehicleHeadings.get(vehicle.id) ?? vehicle.heading} isSelected={selectedVehicleId === vehicle.id} isDimmed={Boolean(selectedVehicleId) && selectedVehicleId !== vehicle.id} onSelect={selectVehicleById} positionSource={data?.positionSource} trip={selectedTrip} remainingStopCount={remainingStops.length} />)}
+        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} iconHeading={baseVehicleHeadings.get(vehicle.id) ?? vehicle.heading} isSelected={selectedVehicleId === vehicle.id} isDimmed={Boolean(selectedVehicleId) && selectedVehicleId !== vehicle.id} onSelect={selectVehicleById} />)}
       </MapContainer>
 
       {showControls && <div className="map-controls" aria-label="Map display controls">
@@ -287,8 +277,9 @@ export default function MetroMap() {
       </div>}
 
       {selectedVehicle && <section className={isTimetableExpanded ? "trip-panel is-expanded" : "trip-panel"} aria-label="Selected service timetable">
+        <button type="button" className="trip-close" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); setIsTimetableExpanded(false); }} aria-label="Close selected service">×</button>
         <div className="trip-panel-content">
-          <span className="service-badge" style={serviceBadgeStyle(selectedVehicle)}>{serviceLabel(selectedVehicle)}</span>
+          <span className="trip-service-meta"><span className="service-badge" style={serviceBadgeStyle(selectedVehicle)}>{serviceLabel(selectedVehicle)}</span>{data?.positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}</span>
           <b>Destination: {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
           <p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p>
           {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station times">
@@ -299,7 +290,6 @@ export default function MetroMap() {
             </li>)}
           </ol>}
           {selectedTrip && remainingStops.length > 3 && <button type="button" className="mobile-timetable-toggle" onClick={() => setIsTimetableExpanded((expanded) => !expanded)}>{isTimetableExpanded ? "Show less" : `View all ${remainingStops.length} stops`}</button>}
-          <button type="button" className="overview-button" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); setIsTimetableExpanded(false); }}>← Back to overview</button>
         </div>
       </section>}
 
