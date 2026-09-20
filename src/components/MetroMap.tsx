@@ -71,7 +71,6 @@ function MapViewportReporter({ onChange }: { onChange: (bounds: Bounds) => void 
 export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
   const [showStations, setShowStations] = useState(true);
-  const [showLinePicker, setShowLinePicker] = useState(false);
   const [showMetro, setShowMetro] = useState(true);
   const [showVline, setShowVline] = useState(true);
   const [showTrams, setShowTrams] = useState(true);
@@ -80,6 +79,7 @@ export default function MetroMap() {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<TripPath | null>(null);
+  const [isTimetableExpanded, setIsTimetableExpanded] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [stationDepartures, setStationDepartures] = useState<Departure[] | null>(null);
   const [location, setLocation] = useState<Point | null>(null);
@@ -134,6 +134,7 @@ export default function MetroMap() {
   async function selectVehicle(vehicle: Vehicle) {
     setSelectedVehicleId(vehicle.id);
     setSelectedTrip(null);
+    setIsTimetableExpanded(false);
     try {
       const response = await fetch(`/api/trips/${encodeURIComponent(vehicle.id)}`);
       if (response.ok) setSelectedTrip((await response.json()) as TripPath);
@@ -206,27 +207,18 @@ export default function MetroMap() {
 
       <div className="map-controls" aria-label="Map display controls">
         <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby services" : "Locate me"}</button>
-        <div className="layer-panel" aria-label="Service layers">
-          <span className="control-label">SERVICE LAYERS</span>
-          <div className="layer-grid">
-            <button type="button" className={showMetro ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowMetro((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showMetro}><span className="metro-dot" />Metro trains</button>
-            <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showVline}><span className="vline-dot" />V/Line</button>
-            <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showTrams}><span className="tram-dot" />Trams</button>
-            <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showBuses}><span className="bus-dot" />Buses</button>
-          </div>
-        </div>
-        <button type="button" className={showLinePicker ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowLinePicker((visible) => !visible)} aria-expanded={showLinePicker}>
-          <span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#d5f253" }} />{selectedLine ? selectedLine.routeName : "All lines"}
-        </button>
+        <button type="button" className={showMetro ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowMetro((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showMetro}><span className="metro-dot" />{showMetro ? "Hide Metro trains" : "Show Metro trains"}</button>
+        <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showVline}><span className="vline-dot" />{showVline ? "Hide V/Line" : "Show V/Line"}</button>
+        <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showTrams}><span className="tram-dot" />{showTrams ? "Hide trams" : "Show trams"}</button>
+        <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showBuses}><span className="bus-dot" />{showBuses ? "Hide buses" : "Show buses"}</button>
+        <label className="route-select"><span>Route</span><select value={selectedRouteId ?? ""} onChange={(event) => setSelectedRouteId(event.target.value || null)} aria-label="Filter by route">
+          <option value="">All lines</option>
+          {lines.map((line) => <option key={line.routeId} value={line.routeId}>{line.routeName}</option>)}
+        </select></label>
         <button type="button" className={showStations ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowStations((visible) => !visible)} aria-pressed={showStations}><span className="station-dot" />{showStations ? "Hide stations" : "Show stations"}</button>
-
-        {showLinePicker && <div className="line-picker" role="group" aria-label="Filter by line">
-          <button type="button" className={!selectedRouteId ? "line-chip is-active" : "line-chip"} onClick={() => { setSelectedRouteId(null); setShowLinePicker(false); }}>All lines</button>
-          {lines.map((line) => <button type="button" key={line.routeId} className={selectedRouteId === line.routeId ? "line-chip is-active" : "line-chip"} onClick={() => { setSelectedRouteId(line.routeId); setShowLinePicker(false); }}><span className="line-dot" style={{ background: line.routeColor ? `#${line.routeColor}` : routeColour(line.routeId) }} />{line.routeName}</button>)}
-        </div>}
       </div>
 
-      {selectedVehicle && <section className="trip-panel" aria-label="Selected service timetable">
+      {selectedVehicle && <section className={isTimetableExpanded ? "trip-panel is-expanded" : "trip-panel"} aria-label="Selected service timetable">
         <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
         <div className="trip-panel-content">
           <small>SELECTED SERVICE</small>
@@ -239,7 +231,8 @@ export default function MetroMap() {
               {index === 0 && <em>Next</em>}
             </li>)}
           </ol>}
-          <button type="button" className="overview-button" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); }}>← Back to overview</button>
+          {selectedTrip && remainingStops.length > 3 && <button type="button" className="mobile-timetable-toggle" onClick={() => setIsTimetableExpanded((expanded) => !expanded)}>{isTimetableExpanded ? "Show less" : `View all ${remainingStops.length} stops`}</button>}
+          <button type="button" className="overview-button" onClick={() => { setSelectedVehicleId(null); setSelectedTrip(null); setIsTimetableExpanded(false); }}>← Back to overview</button>
         </div>
       </section>}
 
