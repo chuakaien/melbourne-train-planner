@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    container_name: metrowise-app
+    container_name: melbourne-transit-radar-app
     restart: unless-stopped
     env_file: .env.home
     environment:

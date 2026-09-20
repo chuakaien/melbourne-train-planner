@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <main className="live">
       <header>
-        <b>↗ Metrowise</b>
+        <b>↗ Melbourne Transit Radar</b>
         <span>● Network map</span>
       </header>
 

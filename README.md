@@ -1,6 +1,6 @@
-# Melbourne Train Planner
+# Melbourne Transit Radar
 
-Metrowise is a Melbourne metropolitan train journey planner designed to make through-running clear. A GTFS `trip_id` is not necessarily one physical train: when the official feed explicitly supplies `transfer_type=4`, the app tells passengers to stay aboard and counts zero transfers.
+Melbourne Transit Radar is a live Melbourne transport map, starting with metropolitan and V/Line trains. Trams and buses are planned next. A GTFS `trip_id` is not necessarily one physical train: when the official feed explicitly supplies `transfer_type=4`, the app tells passengers to stay aboard and counts zero transfers.
 
 ## Features
 

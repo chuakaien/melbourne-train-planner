@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Metrowise — Melbourne Train Journeys",
-  description: "Melbourne train journeys with clear in-seat continuations.",
+  title: "Melbourne Transit Radar — Live Transport Map",
+  description: "A live map of Melbourne trains, with trams and buses to follow.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
