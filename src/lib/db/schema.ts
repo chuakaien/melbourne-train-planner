@@ -1,6 +1,6 @@
 import { index, integer, pgTable, real, text, uniqueIndex } from "drizzle-orm/pg-core";
 
-export const routes = pgTable("routes", { id: text().primaryKey(), shortName: text("short_name"), longName: text("long_name"), color: text() }, (table) => [index("routes_short_name_idx").on(table.shortName)]);
+export const routes = pgTable("routes", { id: text().primaryKey(), shortName: text("short_name"), longName: text("long_name"), color: text(), routeType: integer("route_type") }, (table) => [index("routes_short_name_idx").on(table.shortName), index("routes_route_type_idx").on(table.routeType)]);
 export const stops = pgTable("stops", { id: text().primaryKey(), name: text().notNull(), latitude: real().notNull(), longitude: real().notNull(), parentStation: text("parent_station") }, (table) => [index("stops_name_idx").on(table.name)]);
 export const trips = pgTable("trips", { id: text().primaryKey(), routeId: text("route_id").notNull(), serviceId: text("service_id").notNull(), headsign: text(), blockId: text("block_id"), shapeId: text("shape_id") }, (table) => [index("trips_route_idx").on(table.routeId), index("trips_service_idx").on(table.serviceId), index("trips_shape_idx").on(table.shapeId)]);
 export const shapes = pgTable("shapes", { shapeId: text("shape_id").notNull(), sequence: integer().notNull(), latitude: real().notNull(), longitude: real().notNull() }, (table) => [uniqueIndex("shapes_sequence_idx").on(table.shapeId, table.sequence)]);

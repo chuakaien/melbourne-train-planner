@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getPool } from "@/lib/db/client";
 import { fetchRealtimeMetroVehicles } from "@/lib/realtime/metro";
 
@@ -10,7 +10,8 @@ type DbVehicle = {
   route_id: string;
   route_name: string | null;
   route_color: string | null;
-  network: "metro" | "vline";
+  route_type: number | null;
+  network: "metro" | "vline" | "tram" | "bus";
   headsign: string | null;
   shape_id: string | null;
   from_latitude: number;
@@ -105,8 +106,26 @@ function projectOntoShape(vehicle: DbVehicle, points: ShapePoint[], progress: nu
   return null;
 }
 
-export async function GET() {
+function mapNetwork(routeType: number | null, routeId: string): DbVehicle["network"] {
+  if (routeType === 0) return "tram";
+  if (routeType === 3) return "bus";
+  return routeId.startsWith("aus:vic:vic-01-") ? "vline" : "metro";
+}
+
+function mapBounds(request: NextRequest) {
+  const read = (name: string, fallback: number) => {
+    const value = Number(request.nextUrl.searchParams.get(name));
+    return Number.isFinite(value) ? value : fallback;
+  };
+  return {
+    south: read("south", -38.15), north: read("north", -37.45),
+    west: read("west", 144.45), east: read("east", 145.5),
+  };
+}
+
+export async function GET(request: NextRequest) {
   const clock = serviceClock();
+  const bounds = mapBounds(request);
   const pool = getPool();
   const [stations, vehicleRows, realtimeVehicles] = await Promise.all([
     pool.query(
@@ -120,8 +139,8 @@ export async function GET() {
          union
          select added.service_id from calendar_dates added where added.date = $1 and added.exception_type = 1
        )
-       select t.id as trip_id, t.route_id, t.headsign, t.shape_id, r.short_name as route_name, r.color as route_color,
-              case when t.route_id like 'aus:vic:vic-01-%' then 'vline' else 'metro' end as network,
+       select t.id as trip_id, t.route_id, t.headsign, t.shape_id, r.short_name as route_name, r.color as route_color, r.route_type,
+              case when r.route_type = 0 then 'tram' when r.route_type = 3 then 'bus' when t.route_id like 'aus:vic:vic-01-%' then 'vline' else 'metro' end as network,
               previous_stop.latitude as from_latitude, previous_stop.longitude as from_longitude,
               next_stop.latitude as to_latitude, next_stop.longitude as to_longitude,
               previous_time.departure, next_time.arrival
@@ -147,8 +166,10 @@ export async function GET() {
        cross join lateral (
          select next_time.latitude, next_time.longitude
        ) next_stop
+       where r.route_type is distinct from 3
+          or (previous_stop.latitude between $3 and $4 and previous_stop.longitude between $5 and $6)
        order by t.id`,
-      [clock.date, clock.seconds],
+      [clock.date, clock.seconds, bounds.south, bounds.north, bounds.west, bounds.east],
     ),
     fetchRealtimeMetroVehicles(),
   ]);
@@ -215,7 +236,7 @@ export async function GET() {
       latitude: projected?.latitude ?? vehicle.from_latitude,
       longitude: projected?.longitude ?? vehicle.from_longitude,
       heading: projected?.heading ?? bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
-      network: vehicle.network,
+      network: mapNetwork(vehicle.route_type, vehicle.route_id),
     };
   });
 

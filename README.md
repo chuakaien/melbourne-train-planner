@@ -1,6 +1,6 @@
 # Melbourne Transit Radar
 
-Melbourne Transit Radar is a live Melbourne transport map, starting with metropolitan and V/Line trains. Trams and buses are planned next. A GTFS `trip_id` is not necessarily one physical train: when the official feed explicitly supplies `transfer_type=4`, the app tells passengers to stay aboard and counts zero transfers.
+Melbourne Transit Radar is a live Melbourne transport map for metropolitan and V/Line trains, trams, and buses. A GTFS `trip_id` is not necessarily one physical vehicle: when the official feed explicitly supplies `transfer_type=4`, the app tells passengers to stay aboard and counts zero transfers.
 
 ## Features
 
@@ -13,7 +13,7 @@ Melbourne Transit Radar is a live Melbourne transport map, starting with metropo
 
 ## Architecture and data
 
-The official Victorian DTP GTFS Schedule feed is the timetable foundation. The intended production flow downloads and extracts Folder 2 (Metropolitan Train), normalizes it into PostgreSQL, then routes entirely server-side. See [architecture](docs/architecture.md), [GTFS findings](docs/gtfs-findings.md), and [routing](docs/routing.md).
+The official Victorian DTP GTFS Schedule feed is the timetable foundation. The production flow downloads and extracts folders 1–4 (regional and metropolitan train, metropolitan tram, and Myki bus), normalizes them into PostgreSQL, then serves the map entirely server-side. See [architecture](docs/architecture.md), [GTFS findings](docs/gtfs-findings.md), and [routing](docs/routing.md).
 
 ## Install
 
@@ -44,17 +44,24 @@ standalone Next.js container. The home-server stack listens only on
 `127.0.0.1:14020`; host Nginx serves it at
 `https://melbournetransport.chuakaien.com`.
 
-On the server, create an untracked `.env.home` containing
-`MELBOURNE_TRAIN_DATABASE_DATABASE_URL`, then deploy with:
+On the server, create an untracked `.env.home` from `.env.home.example`, then
+deploy the isolated app and PostgreSQL stack with:
 
 ```bash
 cd /var/www/melbourne-train-planner
 docker compose -f docker-compose.home.yml up -d --build
 ```
 
-The app uses the existing Neon timetable database, so no local database or
-GTFS import is required on the home server. Nginx configuration and the wider
-server runbook live in `chuakaien/home-server-config`.
+Import the latest official schedules after the database is healthy. This takes
+several minutes and needs to be repeated when the weekly feed is refreshed:
+
+```bash
+docker compose -f docker-compose.home.yml --profile maintenance run --rm importer npm run gtfs:update
+```
+
+The database is a private Docker volume on the home server and is not exposed
+to the internet or shared with other projects. Nginx configuration and the
+wider server runbook live in `chuakaien/home-server-config`.
 
 ## Data attribution and limitations
 

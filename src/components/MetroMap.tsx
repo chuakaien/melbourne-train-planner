@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { divIcon } from "leaflet";
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
+import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 type Point = { latitude: number; longitude: number };
 type Station = Point & { id: string; name: string };
-type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: "metro" | "vline" };
+type Network = "metro" | "vline" | "tram" | "bus";
+type Vehicle = Point & { id: string; routeId: string; routeName: string; routeColor: string | null; headsign: string; heading: number; network: Network };
+type Bounds = { south: number; north: number; west: number; east: number };
 type MapData = { stations: Station[]; vehicles: Vehicle[]; asOf: string; positionSource: "scheduled" | "realtime" };
 type TripPath = { destination: string; stops: Array<Point & { name: string; sequence: number; arrival: number; departure: number }>; shape: Array<Point & { sequence: number }> };
 type Departure = { departure: number; platform_code: string | null; headsign: string; route_name: string | null; route_color: string | null };
@@ -52,11 +54,28 @@ function RecenterMap({ position }: { position: Point | null }) {
   return null;
 }
 
+function MapViewportReporter({ onChange }: { onChange: (bounds: Bounds) => void }) {
+  const map = useMapEvents({
+    moveend: () => {
+      const bounds = map.getBounds();
+      onChange({ south: bounds.getSouth(), north: bounds.getNorth(), west: bounds.getWest(), east: bounds.getEast() });
+    },
+  });
+  useEffect(() => {
+    const bounds = map.getBounds();
+    onChange({ south: bounds.getSouth(), north: bounds.getNorth(), west: bounds.getWest(), east: bounds.getEast() });
+  }, [map, onChange]);
+  return null;
+}
+
 export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
   const [showStations, setShowStations] = useState(true);
   const [showLinePicker, setShowLinePicker] = useState(false);
   const [showVline, setShowVline] = useState(true);
+  const [showTrams, setShowTrams] = useState(true);
+  const [showBuses, setShowBuses] = useState(false);
+  const [bounds, setBounds] = useState<Bounds>({ south: -38.15, north: -37.45, west: 144.45, east: 145.5 });
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<TripPath | null>(null);
@@ -66,11 +85,16 @@ export default function MetroMap() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showNearby, setShowNearby] = useState(false);
 
+  const updateBounds = useCallback((next: Bounds) => {
+    setBounds((current) => Math.abs(current.south - next.south) < 0.01 && Math.abs(current.north - next.north) < 0.01 && Math.abs(current.west - next.west) < 0.01 && Math.abs(current.east - next.east) < 0.01 ? current : next);
+  }, []);
+
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
-        const response = await fetch("/api/map", { cache: "no-store" });
+        const query = new URLSearchParams(Object.entries(bounds).map(([key, value]) => [key, String(value)]));
+        const response = await fetch(`/api/map?${query}`, { cache: "no-store" });
         if (!response.ok) return;
         const next = (await response.json()) as MapData;
         if (active) setData(next);
@@ -81,12 +105,14 @@ export default function MetroMap() {
     void load();
     const timer = window.setInterval(load, 30_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, []);
+  }, [bounds]);
 
   const updatedAt = data
     ? new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "Australia/Melbourne" }).format(new Date(data.asOf))
     : "Connecting…";
-  const networkVehicles = (data?.vehicles ?? []).filter((vehicle) => showVline || vehicle.network === "metro");
+  const networkVehicles = (data?.vehicles ?? []).filter((vehicle) =>
+    (showVline || vehicle.network !== "vline") && (showTrams || vehicle.network !== "tram") && (showBuses || vehicle.network !== "bus"),
+  );
   const lines = [...new Map(networkVehicles.map((vehicle) => [vehicle.routeId, vehicle])).values()]
     .sort((first, second) => first.routeName.localeCompare(second.routeName));
   const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
@@ -142,6 +168,7 @@ export default function MetroMap() {
       <MapContainer center={[-37.8136, 144.9631]} zoom={11} className="metro-map" style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <RecenterMap position={location} />
+        <MapViewportReporter onChange={updateBounds} />
 
         {showStations && data?.stations.map((station) => (
           <CircleMarker key={station.id} center={[station.latitude, station.longitude]} radius={4} eventHandlers={{ click: () => { void selectStation(station); } }} pathOptions={{ color: "#06324a", fillColor: "#d5f253", fillOpacity: 0.9, weight: 1 }}>
@@ -177,8 +204,10 @@ export default function MetroMap() {
       </MapContainer>
 
       <div className="map-controls" aria-label="Map display controls">
-        <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby trains" : "Locate me"}</button>
+        <button type="button" className={location ? "map-toggle is-active" : "map-toggle"} onClick={locateMe}><span className="location-dot" />{location ? "Nearby services" : "Locate me"}</button>
         <button type="button" className={showVline ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowVline((visible) => !visible); setSelectedRouteId(null); }}><span className="vline-dot" />{showVline ? "Hide V/Line" : "Show V/Line"}</button>
+        <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }}><span className="tram-dot" />{showTrams ? "Hide trams" : "Show trams"}</button>
+        <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }}><span className="bus-dot" />{showBuses ? "Hide buses" : "Show buses"}</button>
         <button type="button" className={showLinePicker ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowLinePicker((visible) => !visible)} aria-expanded={showLinePicker}>
           <span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#d5f253" }} />{selectedLine ? selectedLine.routeName : "All lines"}
         </button>
@@ -190,10 +219,10 @@ export default function MetroMap() {
         </div>}
       </div>
 
-      {selectedVehicle && <section className="trip-panel" aria-label="Selected train timetable">
+      {selectedVehicle && <section className="trip-panel" aria-label="Selected service timetable">
         <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
         <div className="trip-panel-content">
-          <small>SELECTED TRAIN</small>
+          <small>SELECTED SERVICE</small>
           <b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
           <p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p>
           {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station times">
@@ -207,7 +236,7 @@ export default function MetroMap() {
         </div>
       </section>}
 
-      {location && showNearby && <div className="nearby-panel"><button type="button" className="nearby-close" onClick={() => setShowNearby(false)} aria-label="Hide nearby trains">×</button><small>NEAREST {data?.positionSource === "realtime" ? "LIVE" : "SCHEDULED"} TRAINS</small>{nearbyVehicles.map(({ vehicle, distance }) => <button type="button" key={vehicle.id} onClick={() => { void selectVehicle(vehicle); }}><span className="line-dot" style={{ background: vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId) }} /><b>To {vehicle.headsign}</b><em>{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}</em></button>)}<p>Location is used only in this browser.</p></div>}
+      {location && showNearby && <div className="nearby-panel"><button type="button" className="nearby-close" onClick={() => setShowNearby(false)} aria-label="Hide nearby services">×</button><small>NEAREST {data?.positionSource === "realtime" ? "LIVE" : "SCHEDULED"} SERVICES</small>{nearbyVehicles.map(({ vehicle, distance }) => <button type="button" key={vehicle.id} onClick={() => { void selectVehicle(vehicle); }}><span className="line-dot" style={{ background: vehicle.routeColor ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId) }} /><b>To {vehicle.headsign}</b><em>{distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}</em></button>)}<p>Location is used only in this browser.</p></div>}
       {locationError && <div className="location-error" role="status">{locationError}</div>}
 
       <div className="map-status" aria-live="polite"><span className="status-pulse" /><div><b>{data ? `${visibleVehicles.length} ${data.positionSource === "realtime" ? "live positions" : "scheduled services"}` : "Loading services"}</b><small>{data?.positionSource === "realtime" ? "Official live feed" : "Timetable projection"} · Updated {updatedAt}</small></div></div>
