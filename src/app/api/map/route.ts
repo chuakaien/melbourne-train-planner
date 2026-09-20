@@ -76,9 +76,13 @@ function projectOntoShape(vehicle: DbVehicle, points: ShapePoint[], progress: nu
   if (points.length < 2) return null;
   const fromIndex = closestShapePoint(points, vehicle.from_latitude, vehicle.from_longitude);
   const toIndex = closestShapePoint(points, vehicle.to_latitude, vehicle.to_longitude);
-  if (toIndex <= fromIndex) return null;
+  if (toIndex === fromIndex) return null;
 
-  const path = points.slice(fromIndex, toIndex + 1);
+  // A few shared GTFS shapes are stored opposite to a trip's travel direction.
+  // Reverse just this segment so projection still follows the rail corridor.
+  const path = fromIndex < toIndex
+    ? points.slice(fromIndex, toIndex + 1)
+    : points.slice(toIndex, fromIndex + 1).reverse();
   const lengths = path.slice(1).map((point, index) => distance(path[index], point));
   const totalLength = lengths.reduce((total, length) => total + length, 0);
   if (totalLength === 0) return null;

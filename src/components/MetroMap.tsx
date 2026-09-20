@@ -56,7 +56,7 @@ export default function MetroMap() {
   const [data, setData] = useState<MapData | null>(null);
   const [showStations, setShowStations] = useState(true);
   const [showLinePicker, setShowLinePicker] = useState(false);
-  const [showVline, setShowVline] = useState(false);
+  const [showVline, setShowVline] = useState(true);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<TripPath | null>(null);
