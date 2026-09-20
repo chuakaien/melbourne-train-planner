@@ -34,6 +34,15 @@ function serviceLabel(vehicle: Pick<Vehicle, "network" | "routeName">) {
   return route;
 }
 
+function serviceBadgeStyle(vehicle: Pick<Vehicle, "routeColor" | "routeId">) {
+  const colour = vehicle.routeColor && /^[0-9a-f]{6}$/i.test(vehicle.routeColor) ? `#${vehicle.routeColor}` : routeColour(vehicle.routeId);
+  const red = Number.parseInt(colour.slice(1, 3), 16);
+  const green = Number.parseInt(colour.slice(3, 5), 16);
+  const blue = Number.parseInt(colour.slice(5, 7), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  return { backgroundColor: colour, borderColor: colour, color: luminance > 155 ? "#153147" : "#ffffff" };
+}
+
 function trainIcon(colour: string, heading: number, selected: boolean) {
   const size = selected ? 26 : 21;
   const safeColour = /^#[0-9a-f]{6}$/i.test(colour) ? colour : "#0c75b8";
@@ -65,8 +74,8 @@ const VehicleMarker = memo(function VehicleMarker({
     <Marker position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, iconHeading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={eventHandlers}>
       <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
       <Popup autoPan={false}>
+        <span className="service-badge" style={serviceBadgeStyle(vehicle)}>{serviceLabel(vehicle)}</span><br />
         <b>Destination: {isSelected && trip ? trip.destination : vehicle.headsign}</b><br />
-        {routeLabel(vehicle)} line<br />
         {isSelected && trip ? `${remainingStopCount} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
         {positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}
       </Popup>
@@ -277,10 +286,8 @@ export default function MetroMap() {
       </div>}
 
       {selectedVehicle && <section className={isTimetableExpanded ? "trip-panel is-expanded" : "trip-panel"} aria-label="Selected service timetable">
-        <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
         <div className="trip-panel-content">
-          <small>SELECTED SERVICE</small>
-          <span className="service-badge">{serviceLabel(selectedVehicle)}</span>
+          <span className="service-badge" style={serviceBadgeStyle(selectedVehicle)}>{serviceLabel(selectedVehicle)}</span>
           <b>Destination: {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
           <p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p>
           {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station times">
