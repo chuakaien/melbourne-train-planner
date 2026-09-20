@@ -10,7 +10,7 @@ import { getPool } from "../src/lib/db/client";
 import { gtfsTimeToSeconds } from "../src/lib/gtfs/time";
 
 type Row = Record<string, string>;
-type Feed = { stops: Row[]; routes: Row[]; trips: Row[]; transfers: Row[]; calendars: Row[]; exceptions: Row[]; folder: Folder; path: string };
+type Feed = { stops: Row[]; routes: Row[]; transfers: Row[]; calendars: Row[]; exceptions: Row[]; folder: Folder; path: string };
 type Folder = "1" | "2" | "3" | "4";
 const shapePointStride = 2;
 
@@ -24,7 +24,7 @@ function extractFeed(workspace: string, folder: Folder): Feed {
   const feed = join(workspace, folder);
   execFileSync("unzip", ["-qq", join(feed, "google_transit.zip"), "-d", feed]);
   return {
-    stops: csv(join(feed, "stops.txt")), routes: csv(join(feed, "routes.txt")), trips: csv(join(feed, "trips.txt")),
+    stops: csv(join(feed, "stops.txt")), routes: csv(join(feed, "routes.txt")),
     transfers: csv(join(feed, "transfers.txt")), calendars: csv(join(feed, "calendar.txt")), exceptions: csv(join(feed, "calendar_dates.txt")), folder, path: feed,
   };
 }
@@ -39,8 +39,6 @@ async function main() {
   const [regional, metro] = feeds;
   const stops = unique(feeds.flatMap((feed) => feed.stops), "stop_id");
   const routes = unique(feeds.flatMap((feed) => feed.routes), "route_id");
-  const trips = unique(feeds.flatMap((feed) => feed.trips), "trip_id");
-  const shapeIds = new Set(trips.map((row) => value(row, "shape_id")).filter((shapeId): shapeId is string => Boolean(shapeId)));
   const transfers = feeds.flatMap((feed) => feed.transfers);
   const calendars = unique(feeds.flatMap((feed) => feed.calendars), "service_id");
   const exceptions = uniqueBy(feeds.flatMap((feed) => feed.exceptions), (row) => `${row.service_id}:${row.date}`);
@@ -61,6 +59,27 @@ async function main() {
         const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES ${batch.map((row, index) => `(${row.map((_, column) => `$${index * columns.length + column + 1}`).join(",")})`).join(",")}`;
         await client.query(sql, args);
       }
+    };
+    const shapeIds = new Set<string>();
+    const importTrips = async (file: string) => {
+      let count = 0;
+      let batch: unknown[][] = [];
+      const input = createReadStream(file).pipe(parseStream({ columns: true, skip_empty_lines: true, trim: true, bom: true }));
+      for await (const row of input as AsyncIterable<Row>) {
+        const shapeId = value(row, "shape_id");
+        if (shapeId) shapeIds.add(shapeId);
+        batch.push([row.trip_id, row.route_id, row.service_id, value(row, "trip_headsign"), value(row, "block_id"), shapeId]);
+        if (batch.length === 5_000) {
+          await run("trips", ["id", "route_id", "service_id", "headsign", "block_id", "shape_id"], batch, 5_000);
+          count += batch.length;
+          batch = [];
+        }
+      }
+      if (batch.length) {
+        await run("trips", ["id", "route_id", "service_id", "headsign", "block_id", "shape_id"], batch, 5_000);
+        count += batch.length;
+      }
+      return count;
     };
     const importStopTimes = async (file: string) => {
       let count = 0;
@@ -125,7 +144,8 @@ async function main() {
     };
     await run("stops", ["id", "name", "latitude", "longitude", "parent_station"], stops.map((row) => [row.stop_id, row.stop_name, Number(row.stop_lat), Number(row.stop_lon), value(row, "parent_station")]));
     await run("routes", ["id", "short_name", "long_name", "color", "route_type"], routes.map((row) => [row.route_id, value(row, "route_short_name"), value(row, "route_long_name"), value(row, "route_color"), Number(row.route_type)]));
-    await run("trips", ["id", "route_id", "service_id", "headsign", "block_id", "shape_id"], trips.map((row) => [row.trip_id, row.route_id, row.service_id, value(row, "trip_headsign"), value(row, "block_id"), value(row, "shape_id")]));
+    let tripCount = 0;
+    for (const feed of feeds) tripCount += await importTrips(join(feed.path, "trips.txt"));
     await run("calendars", ["service_id", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "start_date", "end_date"], calendars.map((row) => [row.service_id, ...["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => Number(row[day])), row.start_date, row.end_date]));
     await run("calendar_dates", ["service_id", "date", "exception_type"], exceptions.map((row) => [row.service_id, row.date, Number(row.exception_type)]));
     let stopTimeCount = 0;
@@ -133,7 +153,7 @@ async function main() {
     const shapeCounts = await Promise.all(feeds.map((feed) => importShapes(join(workspace, feed.folder, "shapes.txt"))));
     await run("transfers", ["from_stop_id", "to_stop_id", "from_trip_id", "to_trip_id", "type", "minimum_seconds"], transfers.map((row) => [row.from_stop_id, row.to_stop_id, value(row, "from_trip_id"), value(row, "to_trip_id"), Number(row.transfer_type), row.min_transfer_time ? Number(row.min_transfer_time) : null]));
     await client.query("COMMIT");
-    console.log(`GTFS import complete\nStops: ${stops.length}\nRoutes: ${routes.length}\nTrips: ${trips.length}\nStop times: ${stopTimeCount}\nShape points: ${shapeCounts.reduce((total, count) => total + count, 0)}`);
+    console.log(`GTFS import complete\nStops: ${stops.length}\nRoutes: ${routes.length}\nTrips: ${tripCount}\nStop times: ${stopTimeCount}\nShape points: ${shapeCounts.reduce((total, count) => total + count, 0)}`);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
