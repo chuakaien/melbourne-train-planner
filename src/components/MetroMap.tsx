@@ -42,9 +42,10 @@ function trainIcon(colour: string, heading: number, selected: boolean) {
 }
 
 const VehicleMarker = memo(function VehicleMarker({
-  vehicle, isSelected, isDimmed, onSelect, positionSource, trip, remainingStopCount,
+  vehicle, iconHeading, isSelected, isDimmed, onSelect, positionSource, trip, remainingStopCount,
 }: {
   vehicle: Vehicle;
+  iconHeading: number;
   isSelected: boolean;
   isDimmed: boolean;
   onSelect: (vehicleId: string) => void;
@@ -57,9 +58,9 @@ const VehicleMarker = memo(function VehicleMarker({
   // are not lost while Leaflet updates the visual position.
   const eventHandlers = useMemo(() => ({ click: () => onSelect(vehicle.id) }), [onSelect, vehicle.id]);
   return (
-    <Marker position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, vehicle.heading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={eventHandlers}>
+    <Marker position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, iconHeading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={eventHandlers}>
       <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
-      <Popup>
+      <Popup autoPan={false}>
         <b>Destination: {isSelected && trip ? trip.destination : vehicle.headsign}</b><br />
         {routeLabel(vehicle)} line<br />
         {isSelected && trip ? `${remainingStopCount} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
@@ -196,6 +197,7 @@ export default function MetroMap() {
   const displayedVehicles = data?.positionSource === "scheduled" && data
     ? data.vehicles.map((vehicle) => animateVehicle(vehicle, data.asOf, animationTime))
     : data?.vehicles ?? [];
+  const baseVehicleHeadings = new Map((data?.vehicles ?? []).map((vehicle) => [vehicle.id, vehicle.heading]));
   const networkVehicles = displayedVehicles.filter((vehicle) =>
     (showMetro || vehicle.network !== "metro") && (showVline || vehicle.network !== "vline") && (showTrams || vehicle.network !== "tram") && (showBuses || vehicle.network !== "bus"),
   );
@@ -271,7 +273,7 @@ export default function MetroMap() {
 
         {showStations && data?.stations.map((station) => (
           <CircleMarker key={station.id} center={[station.latitude, station.longitude]} radius={4} eventHandlers={{ click: () => { void selectStation(station); } }} pathOptions={{ color: "#06324a", fillColor: "#d5f253", fillOpacity: 0.9, weight: 1 }}>
-            <Popup>
+            <Popup autoPan={false}>
               <b>{station.name}</b><br />
               {selectedStationId !== station.id || stationDepartures === null ? "Loading departures…" : stationDepartures.length === 0 ? "No scheduled departures soon." : stationDepartures.map((departure, index) => <span key={`${departure.departure}-${index}`}><b>{formatGtfsTime(Number(departure.departure))}</b> · {departure.headsign} · Platform {departure.platform_code ?? "—"}<br /></span>)}
             </Popup>
@@ -283,7 +285,7 @@ export default function MetroMap() {
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
 
-        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} isSelected={selectedVehicleId === vehicle.id} isDimmed={Boolean(selectedVehicleId) && selectedVehicleId !== vehicle.id} onSelect={selectVehicleById} positionSource={data?.positionSource} trip={selectedTrip} remainingStopCount={remainingStops.length} />)}
+        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} iconHeading={baseVehicleHeadings.get(vehicle.id) ?? vehicle.heading} isSelected={selectedVehicleId === vehicle.id} isDimmed={Boolean(selectedVehicleId) && selectedVehicleId !== vehicle.id} onSelect={selectVehicleById} positionSource={data?.positionSource} trip={selectedTrip} remainingStopCount={remainingStops.length} />)}
       </MapContainer>
 
       {showControls && <div className="map-controls" aria-label="Map display controls">
