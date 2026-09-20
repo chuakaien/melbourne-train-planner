@@ -12,6 +12,7 @@ type DbVehicle = {
   route_color: string | null;
   network: "metro" | "vline";
   headsign: string | null;
+  shape_id: string | null;
   from_latitude: number;
   from_longitude: number;
   to_latitude: number;
@@ -19,6 +20,8 @@ type DbVehicle = {
   departure: number;
   arrival: number;
 };
+
+type ShapePoint = { shape_id: string; sequence: number; latitude: number; longitude: number };
 
 function serviceClock(now = new Date()) {
   const values = Object.fromEntries(
@@ -58,6 +61,45 @@ function bearing(fromLatitude: number, fromLongitude: number, toLatitude: number
   return (degrees(Math.atan2(y, x)) + 360) % 360;
 }
 
+function distance(first: Pick<ShapePoint, "latitude" | "longitude">, second: Pick<ShapePoint, "latitude" | "longitude">) {
+  const latitudeScale = 111_320;
+  const longitudeScale = latitudeScale * Math.cos(((first.latitude + second.latitude) / 2) * (Math.PI / 180));
+  return Math.hypot((second.latitude - first.latitude) * latitudeScale, (second.longitude - first.longitude) * longitudeScale);
+}
+
+function closestShapePoint(points: ShapePoint[], latitude: number, longitude: number) {
+  return points.reduce((closest, point, index) =>
+    distance(point, { latitude, longitude }) < distance(points[closest], { latitude, longitude }) ? index : closest, 0);
+}
+
+function projectOntoShape(vehicle: DbVehicle, points: ShapePoint[], progress: number) {
+  if (points.length < 2) return null;
+  const fromIndex = closestShapePoint(points, vehicle.from_latitude, vehicle.from_longitude);
+  const toIndex = closestShapePoint(points, vehicle.to_latitude, vehicle.to_longitude);
+  if (toIndex <= fromIndex) return null;
+
+  const path = points.slice(fromIndex, toIndex + 1);
+  const lengths = path.slice(1).map((point, index) => distance(path[index], point));
+  const totalLength = lengths.reduce((total, length) => total + length, 0);
+  if (totalLength === 0) return null;
+
+  let remaining = totalLength * progress;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const segmentLength = lengths[index];
+    if (remaining > segmentLength && index < lengths.length - 1) {
+      remaining -= segmentLength;
+      continue;
+    }
+    const ratio = segmentLength === 0 ? 0 : remaining / segmentLength;
+    const from = path[index];
+    const to = path[index + 1];
+    const latitude = from.latitude + (to.latitude - from.latitude) * ratio;
+    const longitude = from.longitude + (to.longitude - from.longitude) * ratio;
+    return { latitude, longitude, heading: bearing(from.latitude, from.longitude, to.latitude, to.longitude) };
+  }
+  return null;
+}
+
 export async function GET() {
   const clock = serviceClock();
   const pool = getPool();
@@ -73,7 +115,7 @@ export async function GET() {
          union
          select added.service_id from calendar_dates added where added.date = $1 and added.exception_type = 1
        )
-       select t.id as trip_id, t.route_id, t.headsign, r.short_name as route_name, r.color as route_color,
+       select t.id as trip_id, t.route_id, t.headsign, t.shape_id, r.short_name as route_name, r.color as route_color,
               case when t.route_id like 'aus:vic:vic-01-%' then 'vline' else 'metro' end as network,
               previous_stop.latitude as from_latitude, previous_stop.longitude as from_longitude,
               next_stop.latitude as to_latitude, next_stop.longitude as to_longitude,
@@ -139,18 +181,33 @@ export async function GET() {
     );
   }
 
+  const shapeIds = [...new Set(vehicleRows.rows.flatMap((vehicle) => vehicle.shape_id ? [vehicle.shape_id] : []))];
+  const shapeRows = shapeIds.length
+    ? await pool.query<ShapePoint>(
+        "select shape_id, sequence, latitude, longitude from shapes where shape_id = any($1::text[]) order by shape_id, sequence",
+        [shapeIds],
+      )
+    : { rows: [] };
+  const shapes = new Map<string, ShapePoint[]>();
+  for (const point of shapeRows.rows) {
+    const shape = shapes.get(point.shape_id) ?? [];
+    shape.push(point);
+    shapes.set(point.shape_id, shape);
+  }
+
   const vehicles = vehicleRows.rows.map((vehicle) => {
     const duration = Math.max(1, vehicle.arrival - vehicle.departure);
     const progress = Math.max(0, Math.min(1, (clock.seconds - vehicle.departure) / duration));
+    const projected = vehicle.shape_id ? projectOntoShape(vehicle, shapes.get(vehicle.shape_id) ?? [], progress) : null;
     return {
       id: vehicle.trip_id,
       routeId: vehicle.route_id,
       routeName: vehicle.route_name ?? "Metro",
       routeColor: vehicle.route_color,
       headsign: vehicle.headsign ?? "Melbourne Metro service",
-      latitude: vehicle.from_latitude + (vehicle.to_latitude - vehicle.from_latitude) * progress,
-      longitude: vehicle.from_longitude + (vehicle.to_longitude - vehicle.from_longitude) * progress,
-      heading: bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
+      latitude: projected?.latitude ?? vehicle.from_latitude + (vehicle.to_latitude - vehicle.from_latitude) * progress,
+      longitude: projected?.longitude ?? vehicle.from_longitude + (vehicle.to_longitude - vehicle.from_longitude) * progress,
+      heading: projected?.heading ?? bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
       network: vehicle.network,
     };
   });
