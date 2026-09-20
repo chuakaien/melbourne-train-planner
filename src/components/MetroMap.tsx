@@ -220,7 +220,7 @@ export default function MetroMap() {
                 <b>Destination: {selectedVehicleId === vehicle.id && selectedTrip ? selectedTrip.destination : vehicle.headsign}</b><br />
                 {routeLabel(vehicle)} line<br />
                 {selectedVehicleId === vehicle.id && selectedTrip ? `${remainingStops.length} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
-                {data?.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
+                {data?.positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}
               </Popup>
             </Marker>
           );

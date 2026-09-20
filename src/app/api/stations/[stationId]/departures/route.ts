@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ statio
          and not exists (select 1 from calendar_dates removed where removed.service_id = c.service_id and removed.date = $1 and removed.exception_type = 2)
        union select added.service_id from calendar_dates added where added.date = $1 and added.exception_type = 1
      )
-     select st.departure, st.platform_code, t.headsign, r.short_name as route_name, r.color as route_color
+     select st.departure, coalesce(st.platform_code, s.platform_code) as platform_code, t.headsign, r.short_name as route_name, r.color as route_color
      from stop_times st join stops s on s.id = st.stop_id join trips t on t.id = st.trip_id
      join active_services active on active.service_id = t.service_id left join routes r on r.id = t.route_id
      where s.parent_station = $2 and st.departure >= $3

@@ -51,6 +51,7 @@ async function main() {
     await client.query(readFileSync("migrations/0001_routes.sql", "utf8"));
     await client.query(readFileSync("migrations/0002_shapes.sql", "utf8"));
     await client.query(readFileSync("migrations/0003_route_types.sql", "utf8"));
+    await client.query(readFileSync("migrations/0004_stop_platform_codes.sql", "utf8"));
     await client.query("TRUNCATE shapes, stop_times, transfers, calendar_dates, calendars, trips, stops, routes CASCADE");
     const run = async (table: string, columns: string[], rows: unknown[][], batchSize = 500) => {
       for (let start = 0; start < rows.length; start += batchSize) {
@@ -142,7 +143,7 @@ async function main() {
       }
       return count;
     };
-    await run("stops", ["id", "name", "latitude", "longitude", "parent_station"], stops.map((row) => [row.stop_id, row.stop_name, Number(row.stop_lat), Number(row.stop_lon), value(row, "parent_station")]));
+    await run("stops", ["id", "name", "latitude", "longitude", "parent_station", "platform_code"], stops.map((row) => [row.stop_id, row.stop_name, Number(row.stop_lat), Number(row.stop_lon), value(row, "parent_station"), value(row, "platform_code")]));
     await run("routes", ["id", "short_name", "long_name", "color", "route_type"], routes.map((row) => [row.route_id, value(row, "route_short_name"), value(row, "route_long_name"), value(row, "route_color"), Number(row.route_type)]));
     let tripCount = 0;
     for (const feed of feeds) tripCount += await importTrips(join(feed.path, "trips.txt"));
