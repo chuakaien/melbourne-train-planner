@@ -97,9 +97,10 @@ function projectOntoShape(vehicle: DbVehicle, points: ShapePoint[], progress: nu
     const ratio = segmentLength === 0 ? 0 : remaining / segmentLength;
     const from = path[index];
     const to = path[index + 1];
-    const latitude = from.latitude + (to.latitude - from.latitude) * ratio;
-    const longitude = from.longitude + (to.longitude - from.longitude) * ratio;
-    return { latitude, longitude, heading: bearing(from.latitude, from.longitude, to.latitude, to.longitude) };
+    // Some official shapes contain long, sparse segments. Snap to a recorded
+    // geometry point so a timetable projection never appears between tracks.
+    const point = ratio < 0.5 ? from : to;
+    return { latitude: point.latitude, longitude: point.longitude, heading: bearing(from.latitude, from.longitude, to.latitude, to.longitude) };
   }
   return null;
 }
@@ -209,8 +210,10 @@ export async function GET() {
       routeName: vehicle.route_name ?? "Metro",
       routeColor: vehicle.route_color,
       headsign: vehicle.headsign ?? "Melbourne Metro service",
-      latitude: projected?.latitude ?? vehicle.from_latitude + (vehicle.to_latitude - vehicle.from_latitude) * progress,
-      longitude: projected?.longitude ?? vehicle.from_longitude + (vehicle.to_longitude - vehicle.from_longitude) * progress,
+      // A trip without GTFS geometry stays at its last scheduled stop rather
+      // than being drawn across open land by a straight-line approximation.
+      latitude: projected?.latitude ?? vehicle.from_latitude,
+      longitude: projected?.longitude ?? vehicle.from_longitude,
       heading: projected?.heading ?? bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
       network: vehicle.network,
     };

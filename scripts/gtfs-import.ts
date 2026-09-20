@@ -10,6 +10,7 @@ import { gtfsTimeToSeconds } from "../src/lib/gtfs/time";
 
 type Row = Record<string, string>;
 type Feed = { stops: Row[]; routes: Row[]; trips: Row[]; times: Row[]; transfers: Row[]; calendars: Row[]; exceptions: Row[] };
+const shapePointStride = 2;
 
 const csv = (file: string): Row[] => parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""), { columns: true, skip_empty_lines: true, trim: true });
 const value = (row: Row, name: string) => row[name] || null;
@@ -91,7 +92,7 @@ async function main() {
         }
         const point = [shapeId, Number(cells[columns.shape_pt_sequence]), Number(cells[columns.shape_pt_lat]), Number(cells[columns.shape_pt_lon])];
         lastPoint = point;
-        lastPointWasQueued = pointIndex % 20 === 0;
+        lastPointWasQueued = pointIndex % shapePointStride === 0;
         if (lastPointWasQueued) await queue(point);
         pointIndex += 1;
       }
