@@ -19,6 +19,14 @@ function routeColour(routeId: string) {
   return colours[[...routeId].reduce((sum, character) => sum + character.charCodeAt(0), 0) % colours.length];
 }
 
+function routeLabel(vehicle: Pick<Vehicle, "network" | "routeName">) {
+  const name = vehicle.routeName.trim();
+  if (!/^\d+[a-z]?$/i.test(name)) return name;
+  if (vehicle.network === "tram") return `Tram ${name}`;
+  if (vehicle.network === "bus") return `Bus ${name}`;
+  return name;
+}
+
 function trainIcon(colour: string, heading: number, selected: boolean) {
   const size = selected ? 26 : 21;
   const safeColour = /^#[0-9a-f]{6}$/i.test(colour) ? colour : "#0c75b8";
@@ -117,9 +125,9 @@ export default function MetroMap() {
     (showMetro || vehicle.network !== "metro") && (showVline || vehicle.network !== "vline") && (showTrams || vehicle.network !== "tram") && (showBuses || vehicle.network !== "bus"),
   );
   const lines = [...new Map(networkVehicles.map((vehicle) => [vehicle.routeId, vehicle])).values()]
-    .sort((first, second) => first.routeName.localeCompare(second.routeName));
+    .sort((first, second) => routeLabel(first).localeCompare(routeLabel(second)));
   const selectedLine = lines.find((line) => line.routeId === selectedRouteId);
-  const matchingLines = lines.filter((line) => line.routeName.toLocaleLowerCase().includes(routeQuery.trim().toLocaleLowerCase()));
+  const matchingLines = lines.filter((line) => routeLabel(line).toLocaleLowerCase().includes(routeQuery.trim().toLocaleLowerCase()));
   const visibleVehicles = networkVehicles.filter((vehicle) => !selectedRouteId || vehicle.routeId === selectedRouteId);
   const selectedVehicle = (data?.vehicles ?? []).find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
   const pointsFromCurrentPosition = <T extends Point>(points: T[]) => {
@@ -199,7 +207,7 @@ export default function MetroMap() {
               <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
               <Popup>
                 <b>Destination: {selectedVehicleId === vehicle.id && selectedTrip ? selectedTrip.destination : vehicle.headsign}</b><br />
-                {vehicle.routeName} line<br />
+                {routeLabel(vehicle)} line<br />
                 {selectedVehicleId === vehicle.id && selectedTrip ? `${remainingStops.length} stops remaining · highlighted on map` : "Click to highlight its route"}<br />
                 {data?.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
               </Popup>
@@ -215,11 +223,11 @@ export default function MetroMap() {
         <button type="button" className={showTrams ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowTrams((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showTrams}><span className="tram-dot" />{showTrams ? "Hide trams" : "Show trams"}</button>
         <button type="button" className={showBuses ? "map-toggle is-active" : "map-toggle"} onClick={() => { setShowBuses((visible) => !visible); setSelectedRouteId(null); }} aria-pressed={showBuses}><span className="bus-dot" />{showBuses ? "Hide buses" : "Show buses"}</button>
         <div className="route-finder">
-          <button type="button" className={isRouteFinderOpen ? "map-toggle is-active" : "map-toggle"} onClick={() => setIsRouteFinderOpen((open) => !open)} aria-expanded={isRouteFinderOpen}><span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#9bea47" }} />{selectedLine ? selectedLine.routeName : "Find a route"}</button>
+          <button type="button" className={isRouteFinderOpen ? "map-toggle is-active" : "map-toggle"} onClick={() => setIsRouteFinderOpen((open) => !open)} aria-expanded={isRouteFinderOpen}><span className="line-dot" style={{ background: selectedLine?.routeColor ? `#${selectedLine.routeColor}` : "#9bea47" }} />{selectedLine ? routeLabel(selectedLine) : "Find a route"}</button>
           {isRouteFinderOpen && <div className="route-popover" role="dialog" aria-label="Find a route">
             <input autoFocus value={routeQuery} onChange={(event) => setRouteQuery(event.target.value)} placeholder="Search routes" aria-label="Search routes" />
             <button type="button" className={!selectedRouteId ? "route-option is-active" : "route-option"} onClick={() => { setSelectedRouteId(null); setRouteQuery(""); setIsRouteFinderOpen(false); }}><span className="line-dot" style={{ background: "#9bea47" }} />All lines</button>
-            <div className="route-results">{matchingLines.map((line) => <button type="button" key={line.routeId} className={selectedRouteId === line.routeId ? "route-option is-active" : "route-option"} onClick={() => { setSelectedRouteId(line.routeId); setRouteQuery(""); setIsRouteFinderOpen(false); }}><span className="line-dot" style={{ background: line.routeColor ? `#${line.routeColor}` : routeColour(line.routeId) }} />{line.routeName}</button>)}{matchingLines.length === 0 && <p>No matching route</p>}</div>
+            <div className="route-results">{matchingLines.map((line) => <button type="button" key={line.routeId} className={selectedRouteId === line.routeId ? "route-option is-active" : "route-option"} onClick={() => { setSelectedRouteId(line.routeId); setRouteQuery(""); setIsRouteFinderOpen(false); }}><span className="line-dot" style={{ background: line.routeColor ? `#${line.routeColor}` : routeColour(line.routeId) }} />{routeLabel(line)}</button>)}{matchingLines.length === 0 && <p>No matching route</p>}</div>
           </div>}
         </div>
         <button type="button" className={showStations ? "map-toggle is-active" : "map-toggle"} onClick={() => setShowStations((visible) => !visible)} aria-pressed={showStations}><span className="station-dot" />{showStations ? "Hide stations" : "Show stations"}</button>
