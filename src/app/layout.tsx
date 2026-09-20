@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Melbourne Transit Radar — Live Transport Map",
+  title: "Melbourne Transport Radar — Live Transport Map",
   description: "A live map of Melbourne trains, with trams and buses to follow.",
 };
 

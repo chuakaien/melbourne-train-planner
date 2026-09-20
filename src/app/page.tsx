@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <main className="live">
       <header>
-        <b className="brand"><i className="radar-mark" aria-hidden="true" /><span>Melbourne Transit Radar</span></b>
+        <b className="brand"><i className="radar-mark" aria-hidden="true" /><span>Melbourne Transport Radar</span></b>
         <button type="button" className="network-state" onClick={() => window.dispatchEvent(new Event("toggle-transit-controls"))}><i aria-hidden="true" />Map controls</button>
       </header>
 
