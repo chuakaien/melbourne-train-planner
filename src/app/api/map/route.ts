@@ -18,12 +18,15 @@ type DbVehicle = {
   from_longitude: number;
   to_latitude: number;
   to_longitude: number;
+  sequence: number;
   departure: number;
   arrival: number;
 };
 
 type ShapePoint = { shape_id: string; sequence: number; latitude: number; longitude: number };
 type ShapeSegment = { path: ShapePoint[]; lengths: number[]; totalLength: number };
+type FutureStop = { trip_id: string; sequence: number; arrival: number; departure: number; latitude: number; longitude: number };
+type TimedPoint = { arrival: number; departure: number; latitude: number; longitude: number };
 
 function serviceClock(now = new Date()) {
   const values = Object.fromEntries(
@@ -74,10 +77,10 @@ function closestShapePoint(points: ShapePoint[], latitude: number, longitude: nu
     distance(point, { latitude, longitude }) < distance(points[closest], { latitude, longitude }) ? index : closest, 0);
 }
 
-function segmentForVehicle(vehicle: DbVehicle, points: ShapePoint[]): ShapeSegment | null {
+function segmentBetween(points: ShapePoint[], from: Pick<TimedPoint, "latitude" | "longitude">, to: Pick<TimedPoint, "latitude" | "longitude">): ShapeSegment | null {
   if (points.length < 2) return null;
-  const fromIndex = closestShapePoint(points, vehicle.from_latitude, vehicle.from_longitude);
-  const toIndex = closestShapePoint(points, vehicle.to_latitude, vehicle.to_longitude);
+  const fromIndex = closestShapePoint(points, from.latitude, from.longitude);
+  const toIndex = closestShapePoint(points, to.latitude, to.longitude);
   if (toIndex === fromIndex) return null;
 
   // A few shared GTFS shapes are stored opposite to a trip's travel direction.
@@ -89,6 +92,22 @@ function segmentForVehicle(vehicle: DbVehicle, points: ShapePoint[]): ShapeSegme
   const totalLength = lengths.reduce((total, length) => total + length, 0);
   if (totalLength === 0) return null;
   return { path, lengths, totalLength };
+}
+
+function motionPointAt(time: number, stops: TimedPoint[], shape: ShapePoint[], fallback: { latitude: number; longitude: number; heading: number }) {
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const from = stops[index];
+    const to = stops[index + 1];
+    if (time < from.departure) return { latitude: from.latitude, longitude: from.longitude, heading: fallback.heading };
+    if (time <= to.arrival) {
+      const segment = segmentBetween(shape, from, to);
+      const progress = Math.max(0, Math.min(1, (time - from.departure) / Math.max(1, to.arrival - from.departure)));
+      return segment ? projectSegment(segment, progress, false) : { latitude: from.latitude, longitude: from.longitude, heading: fallback.heading };
+    }
+    if (time <= to.departure) return { latitude: to.latitude, longitude: to.longitude, heading: fallback.heading };
+  }
+  const last = stops[stops.length - 1];
+  return last ? { latitude: last.latitude, longitude: last.longitude, heading: fallback.heading } : fallback;
 }
 
 function projectSegment(segment: ShapeSegment, progress: number, snapToShapePoint = true) {
@@ -146,7 +165,7 @@ export async function GET(request: NextRequest) {
               case when r.route_type = 0 then 'tram' when r.route_type = 3 then 'bus' when t.route_id like 'aus:vic:vic-01-%' then 'vline' else 'metro' end as network,
               previous_stop.latitude as from_latitude, previous_stop.longitude as from_longitude,
               next_stop.latitude as to_latitude, next_stop.longitude as to_longitude,
-              previous_time.departure, next_time.arrival
+              previous_time.sequence, previous_time.departure, next_time.arrival
        from trips t
        join active_services service on service.service_id = t.service_id
        left join routes r on r.id = t.route_id
@@ -210,34 +229,61 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const tripIds = vehicleRows.rows.map((vehicle) => vehicle.trip_id);
   const shapeIds = [...new Set(vehicleRows.rows.flatMap((vehicle) => vehicle.shape_id ? [vehicle.shape_id] : []))];
-  const shapeRows = shapeIds.length
-    ? await pool.query<ShapePoint>(
+  const [shapeRows, futureStopRows] = await Promise.all([
+    shapeIds.length
+      ? pool.query<ShapePoint>(
         "select shape_id, sequence, latitude, longitude from shapes where shape_id = any($1::text[]) order by shape_id, sequence",
         [shapeIds],
       )
-    : { rows: [] };
+      : Promise.resolve({ rows: [] as ShapePoint[] }),
+    tripIds.length
+      ? pool.query<FutureStop>(
+        `select current.trip_id, upcoming.sequence, upcoming.arrival, upcoming.departure, upcoming.latitude, upcoming.longitude
+         from unnest($1::text[], $2::int[]) as current(trip_id, sequence)
+         join lateral (
+           select st.sequence, st.arrival, st.departure, s.latitude, s.longitude
+           from stop_times st join stops s on s.id = st.stop_id
+           where st.trip_id = current.trip_id and st.sequence > current.sequence
+           order by st.sequence limit 4
+         ) upcoming on true
+         order by current.trip_id, upcoming.sequence`,
+        [tripIds, vehicleRows.rows.map((vehicle) => vehicle.sequence)],
+      )
+      : Promise.resolve({ rows: [] as FutureStop[] }),
+  ]);
   const shapes = new Map<string, ShapePoint[]>();
   for (const point of shapeRows.rows) {
     const shape = shapes.get(point.shape_id) ?? [];
     shape.push(point);
     shapes.set(point.shape_id, shape);
   }
+  const futureStops = new Map<string, FutureStop[]>();
+  for (const stop of futureStopRows.rows) {
+    const stops = futureStops.get(stop.trip_id) ?? [];
+    stops.push(stop);
+    futureStops.set(stop.trip_id, stops);
+  }
 
   const vehicles = vehicleRows.rows.map((vehicle) => {
     const duration = Math.max(1, vehicle.arrival - vehicle.departure);
     const progress = Math.max(0, Math.min(1, (clock.seconds - vehicle.departure) / duration));
-    const segment = vehicle.shape_id ? segmentForVehicle(vehicle, shapes.get(vehicle.shape_id) ?? []) : null;
+    const shape = vehicle.shape_id ? shapes.get(vehicle.shape_id) ?? [] : [];
+    const segment = segmentBetween(shape, { latitude: vehicle.from_latitude, longitude: vehicle.from_longitude }, { latitude: vehicle.to_latitude, longitude: vehicle.to_longitude });
     // Keep the base position on an official geometry point, while supplying a
     // lightweight 30-second path for smooth, browser-only timetable animation.
     const projected = segment ? projectSegment(segment, progress) : null;
-    const motionPath = segment
+    const fallback = projected ?? { latitude: vehicle.from_latitude, longitude: vehicle.from_longitude, heading: bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude) };
+    const motionStops: TimedPoint[] = [
+      { arrival: vehicle.departure, departure: vehicle.departure, latitude: vehicle.from_latitude, longitude: vehicle.from_longitude },
+      ...(futureStops.get(vehicle.trip_id) ?? []),
+    ];
+    const motionPath = motionStops.length > 1
       ? Array.from({ length: 16 }, (_, index) => {
           const offset = index * 2_000;
-          const futureProgress = Math.max(0, Math.min(1, (clock.seconds + offset - vehicle.departure) / duration));
-          const point = projectSegment(segment, futureProgress, false);
-          return point ? { ...point, offset } : null;
-        }).filter((point): point is { latitude: number; longitude: number; heading: number; offset: number } => point !== null)
+          return { ...motionPointAt(clock.seconds + offset, motionStops, shape, fallback), offset };
+        })
       : [];
     return {
       id: vehicle.trip_id,
@@ -247,9 +293,9 @@ export async function GET(request: NextRequest) {
       headsign: vehicle.headsign ?? "Melbourne Metro service",
       // A trip without GTFS geometry stays at its last scheduled stop rather
       // than being drawn across open land by a straight-line approximation.
-      latitude: projected?.latitude ?? vehicle.from_latitude,
-      longitude: projected?.longitude ?? vehicle.from_longitude,
-      heading: projected?.heading ?? bearing(vehicle.from_latitude, vehicle.from_longitude, vehicle.to_latitude, vehicle.to_longitude),
+      latitude: fallback.latitude,
+      longitude: fallback.longitude,
+      heading: fallback.heading,
       network: mapNetwork(vehicle.route_type, vehicle.route_id),
       motionPath,
     };
