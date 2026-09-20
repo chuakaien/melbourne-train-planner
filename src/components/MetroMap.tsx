@@ -137,7 +137,12 @@ export default function MetroMap() {
     return points.slice(closest);
   };
   const remainingStops = selectedTrip ? pointsFromCurrentPosition(selectedTrip.stops) : [];
-  const remainingTrack = selectedTrip ? pointsFromCurrentPosition(selectedTrip.shape.length ? selectedTrip.shape : selectedTrip.stops) : [];
+  const selectedTrack = selectedTrip ? (selectedTrip.shape.length ? selectedTrip.shape : selectedTrip.stops) : [];
+  const selectedTrackIndex = selectedVehicle && selectedTrack.length
+    ? selectedTrack.reduce((closestIndex, point, index) => distanceKm(point, selectedVehicle) < distanceKm(selectedTrack[closestIndex], selectedVehicle) ? index : closestIndex, 0)
+    : 0;
+  const travelledTrack = selectedTrack.slice(0, selectedTrackIndex + 1);
+  const remainingTrack = selectedTrack.slice(selectedTrackIndex);
   const nearbyVehicles = location
     ? visibleVehicles.map((vehicle) => ({ vehicle, distance: distanceKm(location, vehicle) })).sort((first, second) => first.distance - second.distance).slice(0, 3)
     : [];
@@ -192,9 +197,8 @@ export default function MetroMap() {
           </CircleMarker>
         ))}
 
-        {selectedVehicle && remainingTrack.length > 1 && (
-          <Polyline positions={[[selectedVehicle.latitude, selectedVehicle.longitude], ...remainingTrack.map((point) => [point.latitude, point.longitude] as [number, number])]} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.85 }} />
-        )}
+        {selectedVehicle && travelledTrack.length > 1 && <Polyline positions={travelledTrack.map((point) => [point.latitude, point.longitude] as [number, number])} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.22 }} />}
+        {selectedVehicle && remainingTrack.length > 1 && <Polyline positions={[[selectedVehicle.latitude, selectedVehicle.longitude], ...remainingTrack.map((point) => [point.latitude, point.longitude] as [number, number])]} pathOptions={{ color: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId), weight: 5, opacity: 0.88 }} />}
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
 
@@ -208,7 +212,7 @@ export default function MetroMap() {
               <Popup>
                 <b>Destination: {selectedVehicleId === vehicle.id && selectedTrip ? selectedTrip.destination : vehicle.headsign}</b><br />
                 {routeLabel(vehicle)} line<br />
-                {selectedVehicleId === vehicle.id && selectedTrip ? `${remainingStops.length} stops remaining · highlighted on map` : "Click to highlight its route"}<br />
+                {selectedVehicleId === vehicle.id && selectedTrip ? `${remainingStops.length} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
                 {data?.positionSource === "realtime" ? "Official realtime vehicle position" : "Position projected from today&apos;s timetable"}
               </Popup>
             </Marker>
