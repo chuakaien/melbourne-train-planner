@@ -74,10 +74,9 @@ const VehicleMarker = memo(function VehicleMarker({
     <Marker position={[vehicle.latitude, vehicle.longitude]} icon={trainIcon(colour, iconHeading, isSelected)} opacity={isDimmed ? 0.18 : 1} eventHandlers={eventHandlers}>
       <Tooltip direction="top" offset={[0, -7]} opacity={0.96}>{vehicle.headsign}</Tooltip>
       <Popup autoPan={false}>
-        <span className="service-badge" style={serviceBadgeStyle(vehicle)}>{serviceLabel(vehicle)}</span><br />
+        <span className="popup-service-meta"><span className="service-badge" style={serviceBadgeStyle(vehicle)}>{serviceLabel(vehicle)}</span>{positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}</span><br />
         <b>Destination: {isSelected && trip ? trip.destination : vehicle.headsign}</b><br />
-        {isSelected && trip ? `${remainingStopCount} stops remaining · full trip highlighted on map` : "Click to highlight its route"}<br />
-        {positionSource === "realtime" ? <span className="position-badge is-live">Live position</span> : <span className="position-badge">Timetable estimate</span>}
+        {isSelected && trip && <>{remainingStopCount} stops remaining · full trip highlighted on map<br /></>}
       </Popup>
     </Marker>
   );
