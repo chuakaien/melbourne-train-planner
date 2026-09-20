@@ -63,9 +63,14 @@ The database is a private Docker volume on the home server and is not exposed
 to the internet or shared with other projects. Nginx configuration and the
 wider server runbook live in `chuakaien/home-server-config`.
 
-For a future zero-downtime feed refresh, import into a separate staging
-database and switch the application to it only after the import succeeds. The
-initial full import can take several minutes because of the statewide bus feed.
+For subsequent zero-downtime feed refreshes, run the home-server script below.
+It imports into the inactive database and switches the application only after
+the import succeeds. The initial full import can take several minutes because
+of the statewide bus feed.
+
+```bash
+./scripts/home-gtfs-refresh.sh
+```
 
 ## Data attribution and limitations
 

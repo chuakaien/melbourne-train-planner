@@ -9,6 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - melbourne-transit-radar-postgres:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -23,9 +24,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      # A temporary external URL can be supplied during a first import; otherwise
-      # the app uses this stack's private PostgreSQL database.
-      MELBOURNE_TRAIN_DATABASE_DATABASE_URL: ${MELBOURNE_TRAIN_DATABASE_DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}}
+      MELBOURNE_TRAIN_DATABASE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${ACTIVE_DATABASE}
     depends_on:
       db:
         condition: service_healthy
@@ -45,7 +44,7 @@ services:
     profiles: ["maintenance"]
     env_file: .env.home
     environment:
-      MELBOURNE_TRAIN_DATABASE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      MELBOURNE_TRAIN_DATABASE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${IMPORT_DATABASE}
     depends_on:
       db:
         condition: service_healthy
