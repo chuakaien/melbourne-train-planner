@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    container_name: metrowise-app
+    restart: unless-stopped
+    env_file: .env.home
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:14020:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s

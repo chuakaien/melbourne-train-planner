@@ -39,7 +39,22 @@ npm run gtfs:import
 
 ## Deployment
 
-The project is designed for Vercel. Connect the GitHub repository in Vercel, set the environment variables there, provision PostgreSQL, then run the importer from an environment with database access. No Vercel project is configured by this repository.
+The project is deployed on Vercel and can also run on the home server as a
+standalone Next.js container. The home-server stack listens only on
+`127.0.0.1:14020`; host Nginx serves it at
+`https://melbournetransport.chuakaien.com`.
+
+On the server, create an untracked `.env.home` containing
+`MELBOURNE_TRAIN_DATABASE_DATABASE_URL`, then deploy with:
+
+```bash
+cd /var/www/melbourne-train-planner
+docker compose -f docker-compose.home.yml up -d --build
+```
+
+The app uses the existing Neon timetable database, so no local database or
+GTFS import is required on the home server. Nginx configuration and the wider
+server runbook live in `chuakaien/home-server-config`.
 
 ## Data attribution and limitations
 
