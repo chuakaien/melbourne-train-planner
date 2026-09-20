@@ -27,6 +27,13 @@ function routeLabel(vehicle: Pick<Vehicle, "network" | "routeName">) {
   return name;
 }
 
+function serviceLabel(vehicle: Pick<Vehicle, "network" | "routeName">) {
+  const route = routeLabel(vehicle);
+  if (vehicle.network === "metro") return `Train ${route}`;
+  if (vehicle.network === "vline") return `V/Line ${route}`;
+  return route;
+}
+
 function trainIcon(colour: string, heading: number, selected: boolean) {
   const size = selected ? 26 : 21;
   const safeColour = /^#[0-9a-f]{6}$/i.test(colour) ? colour : "#0c75b8";
@@ -273,7 +280,8 @@ export default function MetroMap() {
         <span className="line-dot" style={{ background: selectedVehicle.routeColor ? `#${selectedVehicle.routeColor}` : routeColour(selectedVehicle.routeId) }} />
         <div className="trip-panel-content">
           <small>SELECTED SERVICE</small>
-          <b>To {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
+          <span className="service-badge">{serviceLabel(selectedVehicle)}</span>
+          <b>Destination: {selectedTrip?.destination ?? selectedVehicle.headsign}</b>
           <p>{selectedTrip ? `${remainingStops.length} scheduled stops remaining` : "Loading its route…"}</p>
           {selectedTrip && <ol className="remaining-timetable" aria-label="Remaining station times">
             {remainingStops.map((stop, index) => <li key={`${stop.sequence}-${stop.name}`}>
