@@ -49,14 +49,14 @@ deploy the isolated app and PostgreSQL stack with:
 
 ```bash
 cd /var/www/melbourne-train-planner
-docker compose -f docker-compose.home.yml up -d --build
+docker compose --env-file .env.home -f docker-compose.home.yml up -d --build
 ```
 
 Import the latest official schedules after the database is healthy. This takes
 several minutes and needs to be repeated when the weekly feed is refreshed:
 
 ```bash
-docker compose -f docker-compose.home.yml --profile maintenance run --rm importer npm run gtfs:update
+docker compose --env-file .env.home -f docker-compose.home.yml --profile maintenance run --rm importer npm run gtfs:update
 ```
 
 The database is a private Docker volume on the home server and is not exposed
