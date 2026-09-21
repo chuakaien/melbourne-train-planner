@@ -256,7 +256,7 @@ export default function MetroMap() {
 
         {location && <CircleMarker center={[location.latitude, location.longitude]} radius={9} pathOptions={{ color: "#fff", fillColor: "#0c75b8", fillOpacity: 1, weight: 3 }}><Tooltip permanent direction="top">You are here</Tooltip></CircleMarker>}
 
-        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} iconHeading={baseVehicleHeadings.get(vehicle.id) ?? vehicle.heading} isSelected={selectedVehicleId === vehicle.id} isDimmed={Boolean(selectedVehicleId) && selectedVehicleId !== vehicle.id} onSelect={selectVehicleById} />)}
+        {visibleVehicles.map((vehicle) => <VehicleMarker key={vehicle.id} vehicle={vehicle} iconHeading={baseVehicleHeadings.get(vehicle.id) ?? vehicle.heading} isSelected={selectedVehicleId === vehicle.id} isDimmed={selectedVehicle ? selectedVehicle.routeId !== vehicle.routeId : false} onSelect={selectVehicleById} />)}
       </MapContainer>
 
       {showControls && <div className="map-controls" aria-label="Map display controls">
